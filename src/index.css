@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --pitch-green: #00FF87;
+    --tactical-cyan: #38BDF8;
+    --surface-base: #051424;
+    --surface-dark: #091726;
+    --surface-card: #0d1c2d;
+    --surface-elevated: #162638;
+  }
+
+  body {
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: #051424;
+    color: #d4e4fa;
+    overflow-x: hidden;
+  }
+
+  /* Monospace tabular figures for all data */
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #051424;
+}
+::-webkit-scrollbar-thumb {
+  background: #1c2b3c;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2c3a4c;
+}
+
+/* Tactical pitch patterns */
+.pitch-stripes {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.015) 0px,
+    rgba(255, 255, 255, 0.015) 48px,
+    transparent 48px,
+    transparent 96px
+  );
+}
+
+.tactical-grid {
+  background-size: 32px 32px;
+  background-image: 
+    linear-gradient(to right, rgba(0, 255, 135, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 255, 135, 0.04) 1px, transparent 1px);
+}
+
+.glow-green {
+  box-shadow: 0 0 16px -2px rgba(0, 255, 135, 0.35);
+}
+
+.glow-cyan {
+  box-shadow: 0 0 16px -2px rgba(56, 189, 248, 0.35);
+}
+

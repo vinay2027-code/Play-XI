@@ -1,0 +1,6 @@
+{
+  "name": "PLAYXI - FPL Tactical Operating System",
+  "description": "Elite sports-tech operational cockpit for Fantasy Premier League tacticians featuring Monte Carlo squad optimization, real-time fixture difficulty vectors, and advanced player analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
