@@ -1,35 +1,21 @@
 import React from 'react';
 import {
-  LayoutDashboard,
   Users,
-  Crosshair,
   UserSearch,
   CalendarDays,
-  ArrowLeftRight,
-  TrendingUp,
-  SlidersHorizontal,
-  UserCircle,
   Zap,
 } from 'lucide-react';
-import { ActiveUser } from '../types/fpl';
 
 interface SidebarProps {
   activeScreen: string;
   onNavigate: (screen: string) => void;
-  user: ActiveUser;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeScreen, onNavigate, user }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeScreen, onNavigate }) => {
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'myteam', label: 'My Team', icon: Users },
-    { id: 'build', label: 'Build XI', icon: Crosshair, badge: 'CORE' },
     { id: 'players', label: 'Players', icon: UserSearch },
     { id: 'fixtures', label: 'Fixtures', icon: CalendarDays },
-    { id: 'transfers', label: 'Transfers', icon: ArrowLeftRight },
-    { id: 'insights', label: 'Insights', icon: TrendingUp },
-    { id: 'settings', label: 'Settings', icon: SlidersHorizontal },
-    { id: 'profile', label: 'Profile', icon: UserCircle },
   ];
 
   return (
@@ -38,7 +24,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeScreen, onNavigate, user
         {/* Brand Header */}
         <div className="h-16 px-5 flex items-center justify-between border-b border-white/8">
           <div 
-            onClick={() => onNavigate('dashboard')}
+            onClick={() => onNavigate('myteam')}
             className="flex items-center gap-2 cursor-pointer group"
           >
             <div className="w-6 h-6 rounded bg-[#00FF87] flex items-center justify-center text-[#051424] font-black text-xs">
@@ -49,7 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeScreen, onNavigate, user
             </span>
           </div>
           <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-[#00FF87]/10 text-[#00FF87] border border-[#00FF87]/20 font-semibold tracking-wider">
-            v2.4 TAC
+            FPL
           </span>
         </div>
 
@@ -76,44 +62,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeScreen, onNavigate, user
                   />
                   <span>{item.label}</span>
                 </div>
-                {item.badge && (
-                  <span
-                    className={`font-mono text-[10px] px-1.5 py-0.2 rounded font-bold tracking-wider ${
-                      isActive
-                        ? 'bg-[#051424] text-[#00FF87]'
-                        : 'bg-[#00FF87]/20 text-[#00FF87] border border-[#00FF87]/30'
-                    }`}
-                  >
-                    {item.badge}
-                  </span>
-                )}
               </button>
             );
           })}
         </nav>
       </div>
 
-      {/* Bottom Active Squad Widget */}
-      <div className="p-3 border-t border-white/8">
-        <div 
-          onClick={() => onNavigate('build')}
-          className="p-3 rounded-lg bg-[#0d1c2d] border border-white/10 hover:border-[#00FF87]/40 cursor-pointer transition-all group"
-        >
-          <div className="flex items-center justify-between text-[11px] font-mono mb-1.5">
-            <span className="text-slate-400 uppercase tracking-wider font-semibold">Active Squad</span>
-            <span className="text-[#00FF87] bg-[#00FF87]/10 px-1.5 py-0.5 rounded font-bold border border-[#00FF87]/20">
-              £{user.budgetRemaining.toFixed(1)}m ITB
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-white group-hover:text-[#00FF87] transition-colors">
-              {user.activeSquadName}
-            </span>
-            <span className="font-mono text-slate-400 font-medium">
-              {user.squadFormation}
-            </span>
-          </div>
-        </div>
+      <div className="p-4 border-t border-white/8 text-xs leading-relaxed text-slate-400">
+        Import your public FPL Team ID in <button className="text-[#00FF87] hover:underline" onClick={() => onNavigate('myteam')}>My Team</button> to see your live squad and transfer ideas.
       </div>
     </aside>
   );

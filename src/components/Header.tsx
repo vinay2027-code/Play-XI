@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
-import { Search, Bell, ChevronDown, Check, LogOut, ArrowRight, ShieldCheck } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Search, ChevronDown, LogOut, ArrowRight, ShieldCheck } from 'lucide-react';
 import { ActiveUser } from '../types/fpl';
+import type { FplBootstrap, FplEvent } from '../types/football';
+import { formatLocalDateTime } from '../utils/fpl';
 
 interface HeaderProps {
   user: ActiveUser;
   activeScreen: string;
   onOpenSearch: () => void;
-  onOpenNotifications: () => void;
   onLogout: () => void;
   onNavigate: (screen: string) => void;
 }
@@ -15,35 +16,44 @@ export const Header: React.FC<HeaderProps> = ({
   user,
   activeScreen,
   onOpenSearch,
-  onOpenNotifications,
   onLogout,
   onNavigate,
 }) => {
-  const [gwDropdownOpen, setGwDropdownOpen] = useState(false);
-  const [selectedGW, setSelectedGW] = useState('Gameweek 12');
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [planningEvent, setPlanningEvent] = useState<FplEvent | null>(null);
 
-  const gameweeks = [
-    { name: 'Gameweek 11', deadline: 'Finished' },
-    { name: 'Gameweek 12', deadline: 'Sat 11:00 AM' },
-    { name: 'Gameweek 13', deadline: 'Fri 18:30 PM' },
-    { name: 'Gameweek 14', deadline: 'Tue 19:30 PM' },
-  ];
+  useEffect(() => {
+    let active = true;
+    fetch('/api/fpl/bootstrap')
+      .then((response) => response.json())
+      .then((data: FplBootstrap) => {
+        const current = data.events.find((event) => event.id === data.currentEvent);
+        const target = current && new Date(current.deadlineTime).getTime() > Date.now()
+          ? current
+          : data.events.find((event) => event.id === data.nextEvent) ?? current;
+        if (active) setPlanningEvent(target ?? null);
+      })
+      .catch(() => { if (active) setPlanningEvent(null); });
+    return () => { active = false; };
+  }, []);
+
+  const deadlineLabel = formatLocalDateTime(planningEvent?.deadlineTime ?? null, 'Loading FPL data');
 
   return (
     <header className="h-16 border-b border-white/8 bg-[#051424]/95 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30">
       {/* Zone 1: Breadcrumb Trail */}
       <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
         <button 
-          onClick={() => onNavigate('dashboard')}
+          onClick={() => onNavigate('myteam')}
           className="hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-[#00FF87]"></span>
-          <span className="text-slate-300">Operational Cockpit</span>
+          <span className="text-slate-300">Play XI</span>
         </button>
         <span className="text-slate-600">›</span>
         <span className="text-[#00FF87] font-semibold">
           {activeScreen === 'dashboard' && 'FPL Tactical Engine'}
+          {activeScreen === 'myteam' && 'My FPL Team'}
           {activeScreen === 'build' && 'Squad Optimizer AI'}
           {activeScreen === 'players' && 'Player Explorer & Analytics'}
           {activeScreen === 'fixtures' && 'Fixture Difficulty Matrix'}
@@ -68,46 +78,14 @@ export const Header: React.FC<HeaderProps> = ({
           </kbd>
         </button>
 
-        {/* Gameweek Dropdown */}
-        <div className="relative">
-          <button
-            onClick={() => setGwDropdownOpen(!gwDropdownOpen)}
-            className="flex items-center gap-3 px-3 py-1.5 rounded-md bg-[#0d1c2d] border border-white/10 hover:border-white/20 text-xs transition-colors"
-          >
+        <div className="flex items-center gap-3 px-3 py-1.5 rounded-md bg-[#0d1c2d] border border-white/10 text-xs">
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#00FF87] animate-pulse"></span>
-              <span className="font-semibold text-white">{selectedGW}</span>
+              <span className="w-2 h-2 rounded-full bg-[#00FF87]"></span>
+              <span className="font-semibold text-white">{planningEvent?.name ?? 'FPL'}</span>
             </div>
             <div className="text-slate-400 text-[11px] font-mono border-l border-white/10 pl-2">
-              Deadline: Sat 11:00 AM
+              Deadline: {deadlineLabel}
             </div>
-            <ChevronDown className="w-3 h-3 text-slate-400" />
-          </button>
-
-          {gwDropdownOpen && (
-            <div className="absolute top-full mt-1.5 right-0 w-60 rounded-lg bg-[#0d1c2d] border border-white/10 shadow-2xl p-1.5 z-50">
-              <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400 px-2 py-1">
-                Select Gameweek Horizon
-              </div>
-              {gameweeks.map((gw) => (
-                <button
-                  key={gw.name}
-                  onClick={() => {
-                    setSelectedGW(gw.name);
-                    setGwDropdownOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded text-xs transition-colors ${
-                    selectedGW === gw.name
-                      ? 'bg-[#00FF87]/15 text-[#00FF87] font-semibold'
-                      : 'text-slate-300 hover:bg-white/5'
-                  }`}
-                >
-                  <span>{gw.name}</span>
-                  <span className="font-mono text-[11px] text-slate-400">{gw.deadline}</span>
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
@@ -122,18 +100,6 @@ export const Header: React.FC<HeaderProps> = ({
           <Search className="w-4 h-4" />
         </button>
 
-        {/* Notification Bell */}
-        <div className="relative">
-          <button
-            onClick={onOpenNotifications}
-            className="relative p-2 rounded-md bg-[#0d1c2d] border border-white/10 text-slate-300 hover:text-white hover:border-white/20 transition-colors"
-            title="Operational Alerts"
-          >
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#00FF87]"></span>
-          </button>
-        </div>
-
         {/* User Pill */}
         <div className="relative">
           <button
@@ -147,7 +113,7 @@ export const Header: React.FC<HeaderProps> = ({
                 referrerPolicy="no-referrer"
                 className="w-7 h-7 rounded object-cover border border-[#00FF87]/50"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=Alex+Sterling&background=00FF87&color=051424&bold=true';
+                  (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=00FF87&color=051424&bold=true`;
                 }}
               />
               <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#00FF87] ring-2 ring-[#051424]"></span>
@@ -167,8 +133,8 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="text-xs font-bold text-white">{user.name}</div>
                 <div className="text-[11px] text-slate-400">{user.email}</div>
                 <div className="mt-1.5 flex items-center justify-between text-[10px] font-mono bg-[#162638] px-2 py-1 rounded">
-                  <span className="text-slate-400">GLOBAL OR</span>
-                  <span className="text-[#00FF87] font-bold">#14,204 ({user.rankTier})</span>
+                  <span className="text-slate-400">{user.globalRank ? 'GLOBAL OR' : 'FPL TEAM'}</span>
+                  <span className="text-[#00FF87] font-bold">{user.globalRank ? `#${user.globalRank.toLocaleString()} (${user.rankTier})` : 'Add your Team ID in My Team'}</span>
                 </div>
               </div>
 

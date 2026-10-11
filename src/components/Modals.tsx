@@ -5,7 +5,6 @@ import {
   ArrowRightLeft,
   Check,
   Search,
-  ChevronRight,
   TrendingUp,
   Shield,
   BarChart2,
@@ -327,114 +326,6 @@ export const SwapPlayerModal: React.FC<SwapPlayerModalProps> = ({
               </div>
             </div>
           ))}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// -------------------------------------------------------------
-// 4. Command Palette (Cmd + K)
-// -------------------------------------------------------------
-interface CommandPaletteProps {
-  allPlayers: Player[];
-  onSelectPlayer: (player: Player) => void;
-  onNavigate: (screen: string) => void;
-  onClose: () => void;
-}
-
-export const CommandPalette: React.FC<CommandPaletteProps> = ({
-  allPlayers,
-  onSelectPlayer,
-  onNavigate,
-  onClose,
-}) => {
-  const [query, setQuery] = useState('');
-
-  const filtered = allPlayers
-    .filter(
-      (p) =>
-        p.name.toLowerCase().includes(query.toLowerCase()) ||
-        p.club.toLowerCase().includes(query.toLowerCase())
-    )
-    .slice(0, 6);
-
-  const screens = [
-    { id: 'dashboard', label: 'Operational Cockpit (Dashboard)' },
-    { id: 'build', label: 'Build XI (Squad Optimizer AI)' },
-    { id: 'players', label: 'Player Explorer & Analytics' },
-    { id: 'fixtures', label: 'Fixture Difficulty Matrix' },
-    { id: 'transfers', label: 'Transfer Planner' },
-    { id: 'insights', label: 'Tactical Intel & Radar' },
-  ].filter((s) => s.label.toLowerCase().includes(query.toLowerCase()));
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-      <div className="w-full max-w-xl rounded-2xl bg-[#0d1c2d] border border-white/15 shadow-2xl overflow-hidden">
-        {/* Search header */}
-        <div className="p-3 border-b border-white/8 flex items-center gap-3">
-          <Search className="w-4 h-4 text-slate-400 ml-2" />
-          <input
-            autoFocus
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Type a command, screen, or player name..."
-            className="w-full bg-transparent text-sm text-white placeholder-slate-500 focus:outline-none font-sans"
-          />
-          <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-slate-400">
-            ESC
-          </kbd>
-        </div>
-
-        {/* Results */}
-        <div className="max-h-80 overflow-y-auto p-2 space-y-3">
-          {/* Screens */}
-          {screens.length > 0 && (
-            <div>
-              <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 px-2 py-1">
-                Navigation Screens
-              </div>
-              {screens.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => {
-                    onNavigate(s.id);
-                    onClose();
-                  }}
-                  className="w-full text-left px-3 py-2 rounded-md text-xs text-slate-300 hover:bg-[#162638] hover:text-white flex items-center justify-between"
-                >
-                  <span>{s.label}</span>
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Players */}
-          {filtered.length > 0 && (
-            <div>
-              <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 px-2 py-1">
-                Premier League Assets
-              </div>
-              {filtered.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => {
-                    onSelectPlayer(p);
-                    onClose();
-                  }}
-                  className="w-full text-left px-3 py-2 rounded-md text-xs text-slate-200 hover:bg-[#162638] hover:text-[#00FF87] flex items-center justify-between font-mono"
-                >
-                  <div>
-                    <span className="font-bold text-white">{p.name}</span>
-                    <span className="text-slate-400 ml-2">({p.club} • {p.role})</span>
-                  </div>
-                  <span className="font-bold text-[#00FF87]">£{p.cost.toFixed(1)}m</span>
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       </div>
     </div>
