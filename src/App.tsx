@@ -10,6 +10,7 @@ import { DashboardScreen } from './components/DashboardScreen';
 import { BuildXIScreen } from './components/BuildXIScreen';
 import { PlayersScreen } from './components/PlayersScreen';
 import { FixturesScreen } from './components/FixturesScreen';
+import { MyTeamScreen } from './components/MyTeamScreen';
 import { TransfersScreen } from './components/TransfersScreen';
 import { InsightsScreen } from './components/InsightsScreen';
 import { ProfileScreen } from './components/ProfileScreen';
@@ -18,7 +19,6 @@ import {
   CompareModal,
   SimulationModal,
   SwapPlayerModal,
-  CommandPalette,
 } from './components/Modals';
 import {
   INITIAL_USER,
@@ -28,7 +28,7 @@ import {
 import { Player, ActiveUser } from './types/fpl';
 
 export default function App() {
-  const [activeScreen, setActiveScreen] = useState<string>('dashboard');
+  const [activeScreen, setActiveScreen] = useState<string>('myteam');
   const [user, setUser] = useState<ActiveUser>(INITIAL_USER);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(true);
 
@@ -42,8 +42,6 @@ export default function App() {
   const [simulationModalOpen, setSimulationModalOpen] = useState(false);
   const [swapModalOpen, setSwapModalOpen] = useState(false);
   const [playerToSwap, setPlayerToSwap] = useState<Player | undefined>(undefined);
-  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   // Global squad state
   const [startingXI, setStartingXI] = useState<{
@@ -83,14 +81,12 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        setCommandPaletteOpen((prev) => !prev);
+        setActiveScreen('players');
       }
       if (e.key === 'Escape') {
-        setCommandPaletteOpen(false);
         setCompareModalOpen(false);
         setSimulationModalOpen(false);
         setSwapModalOpen(false);
-        setNotificationsOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -173,7 +169,7 @@ export default function App() {
   const handleLoginSuccess = (newUser: ActiveUser) => {
     setUser(newUser);
     setIsLoggedIn(true);
-    setActiveScreen('dashboard');
+    setActiveScreen('myteam');
   };
 
   const handleLogout = () => {
@@ -197,8 +193,7 @@ export default function App() {
       <Header
         user={user}
         activeScreen={activeScreen}
-        onOpenSearch={() => setCommandPaletteOpen(true)}
-        onOpenNotifications={() => setNotificationsOpen(!notificationsOpen)}
+        onOpenSearch={() => setActiveScreen('players')}
         onLogout={handleLogout}
         onNavigate={(s) => setActiveScreen(s)}
       />
@@ -209,7 +204,6 @@ export default function App() {
         <Sidebar
           activeScreen={activeScreen}
           onNavigate={(s) => setActiveScreen(s)}
-          user={user}
         />
 
         {/* Dynamic Screen View */}
@@ -227,18 +221,7 @@ export default function App() {
             />
           )}
 
-          {activeScreen === 'myteam' && (
-            <DashboardScreen
-              user={user}
-              onNavigate={(s) => setActiveScreen(s)}
-              onOpenSimulation={() => setSimulationModalOpen(true)}
-              onOpenCompare={handleOpenCompare}
-              onSelectPlayer={handleSelectPlayerForDetail}
-              startingXI={startingXI}
-              bench={bench}
-              insights={TACTICAL_INSIGHTS}
-            />
-          )}
+          {activeScreen === 'myteam' && <MyTeamScreen onBrowsePlayers={() => setActiveScreen('players')} onBrowseFixtures={() => setActiveScreen('fixtures')} />}
 
           {activeScreen === 'build' && (
             <BuildXIScreen
@@ -255,13 +238,7 @@ export default function App() {
             />
           )}
 
-          {activeScreen === 'players' && (
-            <PlayersScreen
-              players={ALL_PLAYERS}
-              onOpenCompare={handleOpenCompare}
-              onSelectPlayer={handleSelectPlayerForDetail}
-            />
-          )}
+          {activeScreen === 'players' && <PlayersScreen />}
 
           {activeScreen === 'fixtures' && <FixturesScreen />}
 
@@ -320,48 +297,6 @@ export default function App() {
         />
       )}
 
-      {commandPaletteOpen && (
-        <CommandPalette
-          allPlayers={ALL_PLAYERS}
-          onSelectPlayer={handleSelectPlayerForDetail}
-          onNavigate={(s) => setActiveScreen(s)}
-          onClose={() => setCommandPaletteOpen(false)}
-        />
-      )}
-
-      {/* Notification Flyout */}
-      {notificationsOpen && (
-        <div className="fixed top-16 right-6 w-80 rounded-xl bg-[#0d1c2d] border border-white/12 shadow-2xl p-4 z-50 animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center justify-between border-b border-white/8 pb-2 mb-3">
-            <span className="font-bold text-white text-xs uppercase tracking-wider">
-              Matchday Operational Alerts
-            </span>
-            <span className="text-[10px] font-mono text-[#00FF87] bg-[#00FF87]/10 px-1.5 py-0.5 rounded">
-              3 New
-            </span>
-          </div>
-          <div className="space-y-2 text-xs">
-            <div className="p-2 rounded bg-[#162638] border border-white/5">
-              <div className="font-bold text-amber-400 text-[11px]">⚠️ Press Conference Update</div>
-              <div className="text-slate-300 text-[11px] mt-0.5">
-                Arteta confirms Martin Odegaard has completed full tactical training.
-              </div>
-            </div>
-            <div className="p-2 rounded bg-[#162638] border border-white/5">
-              <div className="font-bold text-[#00FF87] text-[11px]">📈 Price Rise Imminent</div>
-              <div className="text-slate-300 text-[11px] mt-0.5">
-                Lucas Nordin has surpassed 98% target threshold for price rise.
-              </div>
-            </div>
-            <div className="p-2 rounded bg-[#162638] border border-white/5">
-              <div className="font-bold text-[#38BDF8] text-[11px]">🎯 Fixture Swing Warning</div>
-              <div className="text-slate-300 text-[11px] mt-0.5">
-                Southampton favorable FDR run begins GW12 through GW15.
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
