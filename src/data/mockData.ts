@@ -1,16 +1,16 @@
 import { Player, TacticalInsight, ActiveUser } from '../types/fpl';
 
 export const INITIAL_USER: ActiveUser = {
-  name: 'Alex Sterling',
-  handle: '@alexsterling',
-  email: 'alex.sterling@tacticalfpl.io',
-  phone: '+44 7911 123456',
-  globalRank: 14204,
-  rankTier: 'Top 1.4% OR',
-  avatarUrl: '/src/assets/images/alex_sterling_avatar_1790182571666.jpg',
-  activeSquadName: 'Balanced XI',
+  name: 'FPL Manager',
+  handle: '@fplmanager',
+  email: '',
+  phone: '',
+  globalRank: 0,
+  rankTier: 'Team not linked',
+  avatarUrl: '',
+  activeSquadName: '',
   squadFormation: '3-4-3',
-  budgetRemaining: 0.8,
+  budgetRemaining: 0,
 };
 
 export const ALL_PLAYERS: Player[] = [
@@ -850,26 +850,4 @@ export const TACTICAL_INSIGHTS: TacticalInsight[] = [
     tagColor: 'amber',
     time: '1h ago',
   },
-];
-
-export const FIXTURE_MATRIX_DATA = [
-  { club: 'ARS', next6: [2, 3, 4, 2, 3, 2], name: 'Arsenal' },
-  { club: 'AVL', next6: [2, 3, 2, 4, 2, 3], name: 'Aston Villa' },
-  { club: 'BRE', next6: [2, 2, 3, 2, 4, 3], name: 'Brentford' },
-  { club: 'BHA', next6: [3, 2, 3, 4, 2, 2], name: 'Brighton' },
-  { club: 'CHE', next6: [2, 3, 2, 4, 2, 3], name: 'Chelsea' },
-  { club: 'CRY', next6: [4, 2, 3, 2, 4, 2], name: 'Crystal Palace' },
-  { club: 'EVE', next6: [3, 4, 2, 3, 2, 4], name: 'Everton' },
-  { club: 'FUL', next6: [2, 3, 3, 2, 4, 2], name: 'Fulham' },
-  { club: 'IPS', next6: [4, 2, 2, 3, 4, 3], name: 'Ipswich' },
-  { club: 'LEI', next6: [4, 2, 3, 3, 2, 4], name: 'Leicester' },
-  { club: 'LIV', next6: [2, 4, 3, 2, 4, 2], name: 'Liverpool' },
-  { club: 'MCI', next6: [2, 4, 2, 3, 2, 3], name: 'Man City' },
-  { club: 'MUN', next6: [3, 4, 3, 2, 2, 4], name: 'Man United' },
-  { club: 'NEW', next6: [2, 2, 4, 3, 2, 4], name: 'Newcastle' },
-  { club: 'NFO', next6: [4, 3, 2, 3, 2, 3], name: 'Nottm Forest' },
-  { club: 'SOU', next6: [4, 3, 3, 2, 2, 3], name: 'Southampton' },
-  { club: 'TOT', next6: [4, 2, 2, 3, 4, 2], name: 'Tottenham' },
-  { club: 'WHU', next6: [3, 4, 2, 3, 2, 3], name: 'West Ham' },
-  { club: 'WOL', next6: [3, 2, 2, 4, 3, 2], name: 'Wolves' },
 ];
