@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Search, ChevronDown, Home, ArrowRight } from 'lucide-react';
-import { ActiveUser } from '../types/fpl';
+import { Search, ChevronDown, Home, ArrowRight, Users } from 'lucide-react';
+import type { FplEntry } from '../types/football';
 import type { FplBootstrap, FplEvent } from '../types/football';
 import { formatLocalDateTime } from '../utils/fpl';
 import { BrandMark } from './BrandMark';
 
 interface HeaderProps {
-  user: ActiveUser;
+  entry: FplEntry | null;
+  entryId: string;
   activeScreen: string;
   onOpenSearch: () => void;
   onReturnHome: () => void;
@@ -14,7 +15,8 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  user,
+  entry,
+  entryId,
   activeScreen,
   onOpenSearch,
   onReturnHome,
@@ -53,15 +55,10 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
         <span className="text-slate-600">›</span>
         <span className="text-[#00FF87] font-semibold">
-          {activeScreen === 'dashboard' && 'FPL Tactical Engine'}
           {activeScreen === 'myteam' && 'My FPL Team'}
-          {activeScreen === 'build' && 'Squad Optimizer AI'}
           {activeScreen === 'players' && 'Player Explorer & Analytics'}
           {activeScreen === 'fixtures' && 'Fixture Difficulty Matrix'}
-          {activeScreen === 'transfers' && 'Transfer Planner'}
-          {activeScreen === 'insights' && 'Tactical Radar & Intel'}
-          {activeScreen === 'settings' && 'System Preferences'}
-          {activeScreen === 'profile' && 'Manager Profile'}
+          {activeScreen === 'manager' && 'FPL Manager'}
         </span>
       </div>
 
@@ -112,9 +109,9 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#00FF87] ring-2 ring-[#051424]"></span>
             </div>
             <div className="hidden sm:block">
-              <div className="text-xs font-semibold text-white leading-none">{user.name}</div>
+              <div className="text-xs font-semibold text-white leading-none">{entry?.player_first_name || 'FPL Manager'}</div>
               <div className="text-[10px] font-mono text-[#00FF87] leading-tight font-medium mt-0.5">
-                {user.rankTier}
+                {entry ? `OR #${entry.summary_overall_rank.toLocaleString()}` : 'Link your FPL team'}
               </div>
             </div>
             <ChevronDown className="w-3 h-3 text-slate-400 hidden sm:block" />
@@ -123,24 +120,24 @@ export const Header: React.FC<HeaderProps> = ({
           {profileDropdownOpen && (
             <div className="absolute top-full mt-1.5 right-0 w-64 rounded-lg bg-[#0d1c2d] border border-white/12 shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
               <div className="px-3 py-2 border-b border-white/8 mb-1">
-                <div className="text-xs font-bold text-white">{user.name}</div>
-                {user.email && <div className="text-[11px] text-slate-400">{user.email}</div>}
+                <div className="text-xs font-bold text-white">{entry ? `${entry.player_first_name} ${entry.player_last_name}`.trim() : 'FPL Manager'}</div>
+                {entry && <div className="mt-0.5 text-[11px] text-slate-400">{entry.name}</div>}
                 <div className="mt-1.5 flex items-center justify-between text-[10px] font-mono bg-[#162638] px-2 py-1 rounded">
-                  <span className="text-slate-400">{user.globalRank ? 'GLOBAL OR' : 'FPL TEAM'}</span>
-                  <span className="text-[#00FF87] font-bold">{user.globalRank ? `#${user.globalRank.toLocaleString()} (${user.rankTier})` : 'Add your Team ID in My Team'}</span>
+                  <span className="text-slate-400">FPL TEAM</span>
+                  <span className="text-[#00FF87] font-bold">{entry ? `ID ${entryId} · OR #${entry.summary_overall_rank.toLocaleString()}` : 'Add your Team ID in My Team'}</span>
                 </div>
               </div>
 
               <div className="space-y-0.5">
                 <button
                   onClick={() => {
-                    onNavigate('profile');
+                    onNavigate(entry ? 'manager' : 'myteam');
                     setProfileDropdownOpen(false);
                   }}
                   className="w-full text-left px-3 py-2 rounded text-xs text-slate-300 hover:bg-white/5 hover:text-white flex items-center justify-between"
                 >
-                  <span>Manager Overview</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
+                  <span>{entry ? 'Manager Overview' : 'Connect your FPL team'}</span>
+                  {entry ? <ArrowRight className="w-3.5 h-3.5 text-slate-500" /> : <Users className="w-3.5 h-3.5 text-slate-500" />}
                 </button>
                 <button
                   onClick={() => {
