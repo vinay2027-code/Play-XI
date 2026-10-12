@@ -3,8 +3,8 @@ import {
   Users,
   UserSearch,
   CalendarDays,
-  Zap,
 } from 'lucide-react';
+import { BrandMark } from './BrandMark';
 
 interface SidebarProps {
   activeScreen: string;
@@ -19,21 +19,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeScreen, onNavigate }) =>
   ];
 
   return (
-    <aside className="w-60 bg-[#051424] border-r border-white/8 flex flex-col justify-between shrink-0 h-screen sticky top-0 z-40">
+    <>
+    <aside className="hidden w-60 shrink-0 flex-col justify-between border-r border-white/8 bg-[#051424] md:sticky md:top-16 md:flex md:h-[calc(100vh-4rem)] md:self-start md:z-20">
       <div>
         {/* Brand Header */}
         <div className="h-16 px-5 flex items-center justify-between border-b border-white/8">
-          <div 
+          <button
+            type="button"
             onClick={() => onNavigate('myteam')}
-            className="flex items-center gap-2 cursor-pointer group"
+            aria-label="Play XI — open My Team"
+            className="flex cursor-pointer items-center gap-2.5 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-[#c7f36b]"
           >
-            <div className="w-6 h-6 rounded bg-[#00FF87] flex items-center justify-center text-[#051424] font-black text-xs">
-              <Zap className="w-3.5 h-3.5 fill-[#051424]" />
-            </div>
+            <BrandMark size={32} />
             <span className="font-extrabold tracking-tight text-lg text-white font-sans">
               PLAY<span className="text-[#00FF87]">XI</span>
             </span>
-          </div>
+          </button>
           <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-[#00FF87]/10 text-[#00FF87] border border-[#00FF87]/20 font-semibold tracking-wider">
             FPL
           </span>
@@ -48,16 +49,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeScreen, onNavigate }) =>
               <button
                 key={item.id}
                 onClick={() => onNavigate(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-md text-sm font-medium transition-all group ${
+                aria-current={isActive ? 'page' : undefined}
+                className={`w-full flex items-center justify-between px-3 py-3 rounded-xl text-sm font-medium transition-all group ${
                   isActive
-                    ? 'bg-[#00FF87] text-[#051424] font-bold shadow-lg shadow-[#00FF87]/20'
-                    : 'text-slate-300 hover:text-white hover:bg-[#122131]'
+                    ? 'bg-[#c7f36b]/10 text-[#d9ffa1] font-bold shadow-[inset_3px_0_0_#c7f36b]'
+                    : 'text-slate-300 hover:text-white hover:bg-white/[.045]'
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <Icon
                     className={`w-4 h-4 transition-colors ${
-                      isActive ? 'text-[#051424]' : 'text-slate-400 group-hover:text-white'
+                      isActive ? 'text-[#c7f36b]' : 'text-slate-400 group-hover:text-white'
                     }`}
                   />
                   <span>{item.label}</span>
@@ -72,5 +74,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeScreen, onNavigate }) =>
         Import your public FPL Team ID in <button className="text-[#00FF87] hover:underline" onClick={() => onNavigate('myteam')}>My Team</button> to see your live squad and transfer ideas.
       </div>
     </aside>
+    <nav aria-label="Primary navigation" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-3 border-t border-white/10 bg-[#071521]/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl md:hidden">
+      {navItems.map((item) => {
+        const Icon = item.icon;
+        const isActive = activeScreen === item.id;
+        return (
+          <button
+            key={item.id}
+            onClick={() => onNavigate(item.id)}
+            aria-current={isActive ? 'page' : undefined}
+            className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-semibold transition ${isActive ? 'bg-[#c7f36b]/10 text-[#d9ffa1]' : 'text-slate-400 hover:text-white'}`}
+          >
+            <Icon className={`h-5 w-5 ${isActive ? 'stroke-[2.5]' : ''}`} />
+            <span>{item.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+    </>
   );
 };

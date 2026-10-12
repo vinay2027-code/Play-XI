@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { Search, ChevronDown, LogOut, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Search, ChevronDown, Home, ArrowRight } from 'lucide-react';
 import { ActiveUser } from '../types/fpl';
 import type { FplBootstrap, FplEvent } from '../types/football';
 import { formatLocalDateTime } from '../utils/fpl';
+import { BrandMark } from './BrandMark';
 
 interface HeaderProps {
   user: ActiveUser;
   activeScreen: string;
   onOpenSearch: () => void;
-  onLogout: () => void;
+  onReturnHome: () => void;
   onNavigate: (screen: string) => void;
 }
 
@@ -16,7 +17,7 @@ export const Header: React.FC<HeaderProps> = ({
   user,
   activeScreen,
   onOpenSearch,
-  onLogout,
+  onReturnHome,
   onNavigate,
 }) => {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
@@ -47,8 +48,8 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={() => onNavigate('myteam')}
           className="hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-[#00FF87]"></span>
-          <span className="text-slate-300">Play XI</span>
+          <BrandMark size={28} />
+          <span className="font-extrabold tracking-tight text-white">PLAY<span className="text-[#c7f36b]">XI</span></span>
         </button>
         <span className="text-slate-600">›</span>
         <span className="text-[#00FF87] font-semibold">
@@ -107,15 +108,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center gap-2.5 pl-1.5 pr-2.5 py-1 rounded-md bg-[#0d1c2d] border border-white/10 hover:border-[#00FF87]/40 transition-colors text-left"
           >
             <div className="relative">
-              <img
-                src={user.avatarUrl}
-                alt={user.name}
-                referrerPolicy="no-referrer"
-                className="w-7 h-7 rounded object-cover border border-[#00FF87]/50"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=00FF87&color=051424&bold=true`;
-                }}
-              />
+              <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded border border-[#00FF87]/50 bg-[#00FF87] text-[10px] font-black text-[#051424]">XI</span>
               <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#00FF87] ring-2 ring-[#051424]"></span>
             </div>
             <div className="hidden sm:block">
@@ -131,7 +124,7 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="absolute top-full mt-1.5 right-0 w-64 rounded-lg bg-[#0d1c2d] border border-white/12 shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
               <div className="px-3 py-2 border-b border-white/8 mb-1">
                 <div className="text-xs font-bold text-white">{user.name}</div>
-                <div className="text-[11px] text-slate-400">{user.email}</div>
+                {user.email && <div className="text-[11px] text-slate-400">{user.email}</div>}
                 <div className="mt-1.5 flex items-center justify-between text-[10px] font-mono bg-[#162638] px-2 py-1 rounded">
                   <span className="text-slate-400">{user.globalRank ? 'GLOBAL OR' : 'FPL TEAM'}</span>
                   <span className="text-[#00FF87] font-bold">{user.globalRank ? `#${user.globalRank.toLocaleString()} (${user.rankTier})` : 'Add your Team ID in My Team'}</span>
@@ -151,23 +144,13 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
                 <button
                   onClick={() => {
-                    onNavigate('landing');
+                    onReturnHome();
                     setProfileDropdownOpen(false);
                   }}
                   className="w-full text-left px-3 py-2 rounded text-xs text-slate-300 hover:bg-white/5 hover:text-white flex items-center justify-between"
                 >
-                  <span>View Landing Page</span>
-                  <ShieldCheck className="w-3.5 h-3.5 text-slate-500" />
-                </button>
-                <button
-                  onClick={() => {
-                    onLogout();
-                    setProfileDropdownOpen(false);
-                  }}
-                  className="w-full text-left px-3 py-2 rounded text-xs text-rose-400 hover:bg-rose-500/10 flex items-center justify-between"
-                >
-                  <span>Sign Out</span>
-                  <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Return to welcome page</span>
+                  <Home className="w-3.5 h-3.5 text-slate-400" />
                 </button>
               </div>
             </div>

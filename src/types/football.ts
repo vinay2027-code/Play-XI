@@ -19,10 +19,12 @@ export interface FplTeam {
 export interface FplPlayer {
   id: number;
   code: number;
+  photo: string;
   firstName: string;
   secondName: string;
   webName: string;
   teamId: number;
+  teamCode: number | null;
   teamName: string;
   teamShortName: string;
   position: FplPosition;
@@ -126,4 +128,40 @@ export interface FplTransferRecord {
   entry: number;
   event: number;
   time: string;
+}
+
+export interface FplTransferIdea {
+  outgoing: {
+    id: number;
+    webName: string;
+    teamName: string;
+    teamCode: number | null;
+    photo: string;
+    position: FplPosition;
+    cost: number;
+    expectedPointsNext: number;
+    status: string;
+    chanceOfPlayingNext: number | null;
+  };
+  incoming: {
+    id: number;
+    webName: string;
+    teamName: string;
+    teamCode: number | null;
+    photo: string;
+    position: FplPosition;
+    cost: number;
+    expectedPointsNext: number;
+    form: number;
+  };
+  delta: number;
+  saleValue: number;
+  reasons: string[];
+}
+
+export interface FplRecommendationsResponse {
+  eventId: number;
+  freeIdeas: FplTransferIdea[];
+  lockedCount: number;
+  availableCount: number;
 }
