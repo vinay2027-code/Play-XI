@@ -48,7 +48,7 @@ function picksWithAutomaticSubs(picks: FplPicksResponse | null) {
   return lineup;
 }
 
-export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures }: { onBrowsePlayers: () => void; onBrowseFixtures: () => void }) {
+export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded }: { onBrowsePlayers: () => void; onBrowseFixtures: () => void; onEntryLoaded: (entry: FplEntry | null, entryId: string) => void }) {
   const [entryId, setEntryId] = useState('');
   const [entry, setEntry] = useState<FplEntry | null>(null);
   const [bootstrap, setBootstrap] = useState<FplBootstrap | null>(null);
@@ -76,11 +76,13 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures }: { onBrowsePl
     if (!/^\d+$/.test(cleanId) || Number(cleanId) < 1) {
       setError('Enter the numeric Team ID from your Fantasy Premier League team URL.');
       setRecommendationsLoading(false);
+      onEntryLoaded(null, '');
       return;
     }
     setLoading(true);
     setError('');
     setEntry(null);
+    onEntryLoaded(null, '');
     setBootstrap(null);
     setPicks(null);
     setRecommendations(null);
@@ -178,8 +180,10 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures }: { onBrowsePl
       setAsOfEventId(picksEventId);
       setPlanningBankTenths(bankTenths);
       setEntryId(cleanId);
+      onEntryLoaded(entryData, cleanId);
       if (save) window.localStorage.setItem(STORAGE_KEY, cleanId);
     } catch (cause) {
+      if (requestId === loadRequestId.current) onEntryLoaded(null, '');
       setError(cause instanceof Error ? cause.message : 'Could not load the FPL team. Check the Team ID and try again.');
     } finally {
       if (requestId === loadRequestId.current) setLoading(false);

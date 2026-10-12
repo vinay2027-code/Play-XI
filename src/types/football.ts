@@ -88,11 +88,30 @@ export interface FplEntry {
   name: string;
   player_first_name: string;
   player_last_name: string;
+  player_region_name?: string;
+  player_region_iso_code_short?: string;
+  player_region_iso_code_long?: string;
+  favourite_team?: number | null;
+  years_active?: number;
+  started_event?: number;
+  last_deadline_total_transfers?: number;
   summary_overall_points: number;
   summary_overall_rank: number;
   summary_event_points: number;
   summary_event_rank: number;
   current_event: number;
+  leagues?: {
+    classic?: Array<{
+      id: number;
+      name: string;
+      league_type: string;
+      rank: number | null;
+      entry_rank: number | null;
+      entry_last_rank: number | null;
+      entry_percentile_rank: number | null;
+      rank_count: number;
+    }>;
+  };
 }
 
 export interface FplPick {
