@@ -51,8 +51,33 @@ function cacheFor(durationMs, load) {
   };
 }
 
+const fplResponseCache = new Map();
+async function fetchFplCached(pathname, durationMs = 30_000) {
+  const cached = fplResponseCache.get(pathname);
+  if (cached?.expiresAt > Date.now()) return cached.value;
+  if (cached?.pending) return cached.pending;
+
+  const pending = fetchFpl(pathname)
+    .then((value) => {
+      fplResponseCache.set(pathname, { value, expiresAt: Date.now() + durationMs });
+      return value;
+    })
+    .catch((error) => {
+      fplResponseCache.delete(pathname);
+      throw error;
+    });
+  fplResponseCache.set(pathname, { pending, expiresAt: 0 });
+  if (fplResponseCache.size > 500) {
+    for (const [key, value] of fplResponseCache) {
+      if (!value.pending) fplResponseCache.delete(key);
+      if (fplResponseCache.size <= 500) break;
+    }
+  }
+  return pending;
+}
+
 const loadBootstrap = cacheFor(5 * 60 * 1000, async () => {
-  const payload = await fetchFpl('bootstrap-static/');
+  const payload = await fetchFplCached('bootstrap-static/', 5 * 60 * 1000);
   const teams = new Map((payload.teams || []).map((team) => [team.id, team]));
   const positions = new Map((payload.element_types || []).map((position) => [position.id, position.singular_name_short]));
   return {
@@ -78,10 +103,12 @@ const loadBootstrap = cacheFor(5 * 60 * 1000, async () => {
       return {
         id: player.id,
         code: player.code,
+        photo: player.photo,
         firstName: player.first_name,
         secondName: player.second_name,
         webName: player.web_name,
         teamId: player.team,
+        teamCode: team?.code ?? null,
         teamName: team?.name || 'Unknown team',
         teamShortName: team?.short_name || '—',
         position: positions.get(player.element_type) || '—',
@@ -139,6 +166,138 @@ const loadFixtures = cacheFor(5 * 60 * 1000, async () => {
   };
 });
 
+function getSellingValueTenths(player, transfers, targetEventId) {
+  const latestBuy = transfers
+    .filter((transfer) => transfer.element_in === player.id && transfer.event <= targetEventId)
+    .sort((a, b) => a.event - b.event || a.time.localeCompare(b.time))
+    .at(-1);
+  const purchaseCost = latestBuy?.element_in_cost ?? player.now_cost - (Number(player.cost_change_start) || 0);
+  if (!Number.isFinite(purchaseCost) || purchaseCost < 0) return null;
+  return player.now_cost > purchaseCost
+    ? purchaseCost + Math.floor((player.now_cost - purchaseCost) / 2)
+    : player.now_cost;
+}
+
+function buildTransferIdeas(bootstrap, picksData, transfers, bankTenths, targetEventId) {
+  const playerById = new Map(bootstrap.elements.map((player) => [player.id, player]));
+  const teamNames = new Map(bootstrap.teams.map((team) => [team.id, team.name]));
+  const positions = new Map(bootstrap.element_types.map((position) => [position.id, position.singular_name_short]));
+  const ownedIds = new Set(picksData.picks.map((pick) => pick.element));
+  const teamCounts = new Map();
+  for (const pick of picksData.picks) {
+    const player = playerById.get(pick.element);
+    if (player) teamCounts.set(player.team, (teamCounts.get(player.team) || 0) + 1);
+  }
+  const overLimitTeams = new Set([...teamCounts].filter(([, count]) => count > 3).map(([teamId]) => teamId));
+  const alternatives = bootstrap.elements.filter((player) =>
+    !ownedIds.has(player.id)
+    && !['i', 's', 'u'].includes(player.status)
+    && (player.status !== 'd' || (player.chance_of_playing_next_round ?? 0) >= 50),
+  );
+  const moves = [];
+
+  for (const pick of picksData.picks) {
+    const outgoing = playerById.get(pick.element);
+    if (!outgoing || (overLimitTeams.size && !overLimitTeams.has(outgoing.team))) continue;
+    const saleValueTenths = getSellingValueTenths(outgoing, transfers, targetEventId);
+    if (saleValueTenths === null) continue;
+    const saleValue = saleValueTenths / 10;
+    const budget = saleValueTenths + bankTenths;
+    const needsReplacement = ['i', 's', 'u'].includes(outgoing.status)
+      || (outgoing.status === 'd' && (outgoing.chance_of_playing_next_round ?? 0) < 50);
+
+    for (const incoming of alternatives) {
+      if (incoming.element_type !== outgoing.element_type || incoming.now_cost > budget) continue;
+      const clubCount = teamCounts.get(incoming.team) || 0;
+      if (clubCount + (incoming.team === outgoing.team ? 0 : 1) > 3) continue;
+      const delta = Number(incoming.ep_next || 0) - Number(outgoing.ep_next || 0);
+      if (delta <= 0 && !needsReplacement) continue;
+      const reasons = [];
+      if (delta > 0) reasons.push(`${delta.toFixed(1)} more FPL projected points next gameweek`);
+      if (Number(incoming.form || 0) > Number(outgoing.form || 0)) reasons.push(`stronger recent form (${Number(incoming.form).toFixed(1)} vs ${Number(outgoing.form).toFixed(1)})`);
+      if (outgoing.status !== 'a') reasons.push(`${outgoing.web_name} is unavailable or a doubt`);
+      if (incoming.now_cost < budget) reasons.push(`leaves £${((budget - incoming.now_cost) / 10).toFixed(1)} in the bank`);
+
+      moves.push({
+        outgoing: {
+          id: outgoing.id, webName: outgoing.web_name, teamName: teamNames.get(outgoing.team) || 'Unknown team',
+          photo: outgoing.photo, teamCode: bootstrap.teams.find((team) => team.id === outgoing.team)?.code ?? null,
+          position: positions.get(outgoing.element_type) || '—', cost: outgoing.now_cost / 10,
+          expectedPointsNext: Number(outgoing.ep_next || 0), status: outgoing.status,
+          chanceOfPlayingNext: outgoing.chance_of_playing_next_round ?? null,
+        },
+        incoming: {
+          id: incoming.id, webName: incoming.web_name, teamName: teamNames.get(incoming.team) || 'Unknown team',
+          photo: incoming.photo, teamCode: bootstrap.teams.find((team) => team.id === incoming.team)?.code ?? null,
+          position: positions.get(incoming.element_type) || '—', cost: incoming.now_cost / 10,
+          expectedPointsNext: Number(incoming.ep_next || 0), form: Number(incoming.form || 0),
+        },
+        delta,
+        saleValue,
+        reasons,
+      });
+    }
+  }
+
+  moves.sort((a, b) => b.delta - a.delta || b.incoming.form - a.incoming.form || a.outgoing.webName.localeCompare(b.outgoing.webName));
+  const bestByOutgoing = new Map();
+  for (const move of moves) {
+    if (!bestByOutgoing.has(move.outgoing.id)) bestByOutgoing.set(move.outgoing.id, move);
+  }
+  return [...bestByOutgoing.values()].slice(0, 8);
+}
+
+async function loadTransferPreview(entryId) {
+  const [bootstrap, entry, transferPayload] = await Promise.all([
+    fetchFplCached('bootstrap-static/', 5 * 60 * 1000),
+    fetchFplCached(`entry/${entryId}/`),
+    fetchFplCached(`entry/${entryId}/transfers/`, 60_000),
+  ]);
+  const currentEvent = (bootstrap.events || []).find((event) => event.is_current);
+  const currentDeadlineIsOpen = Boolean(currentEvent && new Date(currentEvent.deadline_time).getTime() > Date.now());
+  const targetEventId = currentDeadlineIsOpen
+    ? currentEvent.id
+    : (bootstrap.events || []).find((event) => event.is_next)?.id ?? currentEvent?.id ?? entry.current_event;
+  if (!targetEventId) throw new ApiError(503, 'FPL has not published a gameweek to plan yet.');
+
+  let picksData;
+  let picksEventId = targetEventId;
+  try {
+    picksData = await fetchFplCached(`entry/${entryId}/event/${targetEventId}/picks/`);
+  } catch (error) {
+    const fallbackEvent = (bootstrap.events || [])
+      .filter((event) => event.finished && event.id < targetEventId)
+      .sort((a, b) => b.id - a.id)[0]?.id;
+    if (!fallbackEvent) throw error;
+    picksData = await fetchFplCached(`entry/${entryId}/event/${fallbackEvent}/picks/`);
+    picksEventId = fallbackEvent;
+  }
+
+  let bankTenths = picksData.entry_history.bank;
+  if (picksEventId < targetEventId) {
+    const intervening = transferPayload
+      .filter((transfer) => transfer.event > picksEventId && transfer.event <= targetEventId)
+      .sort((a, b) => a.event - b.event || a.time.localeCompare(b.time));
+    const updatedPicks = picksData.picks.slice();
+    for (const transfer of intervening) {
+      const outgoingIndex = updatedPicks.findIndex((pick) => pick.element === transfer.element_out);
+      if (outgoingIndex >= 0) {
+        updatedPicks[outgoingIndex] = { ...updatedPicks[outgoingIndex], element: transfer.element_in };
+        bankTenths += transfer.element_out_cost - transfer.element_in_cost;
+      }
+    }
+    picksData = { ...picksData, picks: updatedPicks };
+  }
+
+  const ideas = buildTransferIdeas(bootstrap, picksData, transferPayload, bankTenths, targetEventId);
+  return {
+    eventId: targetEventId,
+    freeIdeas: ideas.slice(0, 3),
+    lockedCount: Math.min(5, Math.max(0, ideas.length - 3)),
+    availableCount: ideas.length,
+  };
+}
+
 app.get('/api/fpl/bootstrap', async (_request, response) => {
   try {
     response.set('Cache-Control', 'public, max-age=60');
@@ -161,6 +320,22 @@ app.get('/api/fpl/fixtures', async (_request, response) => {
   }
 });
 
+app.get('/api/fpl/entry/:entryId/recommendations', async (request, response) => {
+  const entryId = Number(request.params.entryId);
+  if (!Number.isSafeInteger(entryId) || entryId < 1) {
+    response.status(400).json({ error: 'Enter a valid FPL Team ID.' });
+    return;
+  }
+  try {
+    response.set('Cache-Control', 'private, max-age=30');
+    response.json(await loadTransferPreview(entryId));
+  } catch (error) {
+    response.status(error instanceof ApiError ? error.status : 502).json({
+      error: error instanceof Error ? error.message : 'Unable to calculate transfer ideas for this team.',
+    });
+  }
+});
+
 app.get('/api/fpl/entry/:entryId', async (request, response) => {
   const entryId = Number(request.params.entryId);
   if (!Number.isSafeInteger(entryId) || entryId < 1) {
@@ -169,7 +344,7 @@ app.get('/api/fpl/entry/:entryId', async (request, response) => {
   }
   try {
     response.set('Cache-Control', 'private, max-age=30');
-    response.json(await fetchFpl(`entry/${entryId}/`));
+    response.json(await fetchFplCached(`entry/${entryId}/`));
   } catch (error) {
     response.status(error instanceof ApiError ? error.status : 502).json({
       error: error instanceof Error ? error.message : 'Unable to load that FPL team.',
@@ -186,7 +361,7 @@ app.get('/api/fpl/entry/:entryId/event/:eventId/picks', async (request, response
   }
   try {
     response.set('Cache-Control', 'private, max-age=30');
-    response.json(await fetchFpl(`entry/${entryId}/event/${eventId}/picks/`));
+    response.json(await fetchFplCached(`entry/${entryId}/event/${eventId}/picks/`));
   } catch (error) {
     response.status(error instanceof ApiError ? error.status : 502).json({
       error: error instanceof Error ? error.message : 'Unable to load this FPL team’s picks.',
@@ -202,7 +377,7 @@ app.get('/api/fpl/entry/:entryId/transfers', async (request, response) => {
   }
   try {
     response.set('Cache-Control', 'private, max-age=60');
-    response.json(await fetchFpl(`entry/${entryId}/transfers/`));
+    response.json(await fetchFplCached(`entry/${entryId}/transfers/`, 60_000));
   } catch (error) {
     response.status(error instanceof ApiError ? error.status : 502).json({
       error: error instanceof Error ? error.message : 'Unable to load this FPL team’s transfer history.',

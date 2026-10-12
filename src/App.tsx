@@ -28,9 +28,8 @@ import {
 import { Player, ActiveUser } from './types/fpl';
 
 export default function App() {
-  const [activeScreen, setActiveScreen] = useState<string>('myteam');
+  const [activeScreen, setActiveScreen] = useState<string>('landing');
   const [user, setUser] = useState<ActiveUser>(INITIAL_USER);
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(true);
 
   // Modals state
   const [compareModalOpen, setCompareModalOpen] = useState(false);
@@ -166,23 +165,18 @@ export default function App() {
     });
   };
 
-  const handleLoginSuccess = (newUser: ActiveUser) => {
-    setUser(newUser);
-    setIsLoggedIn(true);
+  const handleOpenPlanner = () => {
     setActiveScreen('myteam');
   };
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
+  const handleReturnHome = () => {
     setActiveScreen('landing');
   };
 
-  // If user requested Landing Page or is logged out, show Landing Page
-  if (!isLoggedIn || activeScreen === 'landing') {
+  if (activeScreen === 'landing') {
     return (
       <LandingPage
-        currentUser={user}
-        onLoginSuccess={handleLoginSuccess}
+        onOpenPlanner={handleOpenPlanner}
       />
     );
   }
@@ -194,12 +188,12 @@ export default function App() {
         user={user}
         activeScreen={activeScreen}
         onOpenSearch={() => setActiveScreen('players')}
-        onLogout={handleLogout}
+        onReturnHome={handleReturnHome}
         onNavigate={(s) => setActiveScreen(s)}
       />
 
       {/* Main Layout Container: Left Sidebar + Screen Canvas */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Sidebar */}
         <Sidebar
           activeScreen={activeScreen}
@@ -207,7 +201,7 @@ export default function App() {
         />
 
         {/* Dynamic Screen View */}
-        <main className="flex-1 overflow-y-auto bg-[#051424]">
+        <main className="min-w-0 flex-1 overflow-y-auto bg-[#051424] pb-20 md:pb-0">
           {activeScreen === 'dashboard' && (
             <DashboardScreen
               user={user}

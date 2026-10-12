@@ -1,383 +1,105 @@
-import React, { useState } from 'react';
-import {
-  Zap,
-  Mail,
-  Phone,
-  ArrowRight,
-  ShieldCheck,
-  TrendingUp,
-  Cpu,
-  BarChart3,
-  Award,
-  CheckCircle2,
-  Lock,
-  Smartphone,
-  ChevronRight,
-  Users,
-  Sparkles,
-} from 'lucide-react';
-import { ActiveUser } from '../types/fpl';
+import { ArrowDown, ArrowRight, ArrowRightLeft, BarChart3, CalendarDays, Check, ShieldCheck, Sparkles, Users } from 'lucide-react';
+import { BrandLockup } from './BrandMark';
 
 interface LandingPageProps {
-  onLoginSuccess: (user: ActiveUser) => void;
-  currentUser: ActiveUser;
+  onOpenPlanner: () => void;
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({
-  onLoginSuccess,
-  currentUser,
-}) => {
-  const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email');
-  const [emailInput, setEmailInput] = useState('alex.sterling@tacticalfpl.io');
-  const [passwordInput, setPasswordInput] = useState('••••••••••••');
-  
-  // Phone state
-  const [countryCode, setCountryCode] = useState('+44');
-  const [phoneInput, setPhoneInput] = useState('7911 123456');
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpCode, setOtpCode] = useState(['5', '9', '2', '4', '8', '1']);
-  const [timer, setTimer] = useState(45);
-
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleEmailSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      onLoginSuccess({
-        ...currentUser,
-        email: emailInput || currentUser.email,
-      });
-    }, 500);
-  };
-
-  const handlePhoneSendOtp = (e: React.FormEvent) => {
-    e.preventDefault();
-    setOtpSent(true);
-  };
-
-  const handlePhoneVerify = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      onLoginSuccess({
-        ...currentUser,
-        phone: `${countryCode} ${phoneInput}`,
-      });
-    }, 500);
-  };
-
-  const handleOneClickDemo = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      onLoginSuccess(currentUser);
-    }, 300);
-  };
-
+export function LandingPage({ onOpenPlanner }: LandingPageProps) {
   return (
-    <div className="min-h-screen bg-[#051424] text-white flex flex-col selection:bg-[#00FF87] selection:text-[#051424]">
-      {/* 1. Navigation */}
-      <header className="h-18 border-b border-white/8 bg-[#051424]/90 backdrop-blur-md sticky top-0 z-50 px-6 sm:px-12 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-[#00FF87] flex items-center justify-center text-[#051424]">
-            <Zap className="w-5 h-5 fill-[#051424]" />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="font-extrabold text-xl tracking-tight">
-              PLAY<span className="text-[#00FF87]">XI</span>
-            </span>
-            <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-[#00FF87]/15 text-[#00FF87] border border-[#00FF87]/30 font-bold">
-              v2.4 TAC
-            </span>
-          </div>
-        </div>
-
-        <nav className="hidden md:flex items-center gap-8 text-xs font-medium text-slate-300">
-          <a href="#features" className="hover:text-white transition-colors">Tactical Engine</a>
-          <a href="#optimizer" className="hover:text-white transition-colors">Monte Carlo Model</a>
-          <a href="#pricing" className="hover:text-white transition-colors">Leaderboard</a>
-        </nav>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleOneClickDemo}
-            className="px-4 py-2 rounded-lg bg-[#00FF87] hover:bg-[#00e478] text-[#051424] font-extrabold text-xs transition-all shadow-lg shadow-[#00FF87]/20 flex items-center gap-1.5 cursor-pointer"
-          >
-            <span>Launch Cockpit</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+    <div className="min-h-screen overflow-hidden bg-[#07150f] text-white selection:bg-[#c7f36b] selection:text-[#102018]">
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#07150f]/90 px-5 backdrop-blur-xl sm:px-10">
+        <div className="mx-auto flex h-[68px] max-w-7xl items-center justify-between">
+          <a href="#home" className="flex items-center gap-2.5" aria-label="Play XI home">
+            <BrandLockup size={38} />
+          </a>
+          <nav className="hidden items-center gap-8 text-sm text-slate-300 md:flex">
+            <a href="#how-it-works" className="transition hover:text-white">How it works</a>
+            <a href="#tools" className="transition hover:text-white">Your tools</a>
+            <a href="#pricing" className="transition hover:text-white">Pricing</a>
+          </nav>
+          <button onClick={onOpenPlanner} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#c7f36b] px-4 text-sm font-extrabold text-[#102018] transition hover:bg-[#d7ff84] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c7f36b]">
+            Open planner <ArrowRight className="h-4 w-4" />
           </button>
         </div>
       </header>
 
-      {/* 2. Hero + Auth Module Container */}
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-12 lg:py-20 flex flex-col lg:flex-row items-center justify-between gap-12">
-        {/* Left: Value Proposition */}
-        <div className="lg:w-7/12 space-y-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#00FF87]/10 border border-[#00FF87]/30 text-[#00FF87] text-xs font-mono font-semibold">
-            <span className="w-2 h-2 rounded-full bg-[#00FF87] animate-pulse"></span>
-            OFFICIAL OPERATIONAL ENGINE • 2024/25 SEASON
-          </div>
-
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white font-sans tracking-tight leading-[1.08]">
-            The Algorithmic Edge for <span className="text-[#00FF87]">Serious FPL Tacticians.</span>
-          </h1>
-
-          <p className="text-base sm:text-lg text-slate-300 max-w-xl leading-relaxed">
-            Stop relying on intuition. Simulate 10,000 game paths, optimize squad shape, evaluate xGI vectors, and execute surgical transfers with top 1% operational precision.
-          </p>
-
-          {/* Quick Pillars */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 text-xs font-mono">
-            <div className="p-3 rounded-lg bg-[#0d1c2d] border border-white/8">
-              <div className="text-slate-400 text-[10px] uppercase">Simulation Depth</div>
-              <div className="text-base font-bold text-white mt-0.5">10,000 Runs</div>
+      <main id="home">
+        <section className="relative mx-auto grid max-w-7xl items-center gap-12 px-5 pb-16 pt-14 sm:px-10 sm:pb-24 sm:pt-20 lg:grid-cols-[.9fr_1.1fr] lg:gap-14">
+          <div className="pointer-events-none absolute -left-40 top-10 h-96 w-96 rounded-full bg-[#91d64f]/10 blur-[110px]" />
+          <div className="relative">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#c7f36b]/25 bg-[#c7f36b]/[.07] px-3.5 py-2 text-xs font-semibold text-[#d9ffa1]">
+              <span className="h-2 w-2 rounded-full bg-[#c7f36b] shadow-[0_0_12px_#c7f36b]" /> Your FPL team, in focus
             </div>
-            <div className="p-3 rounded-lg bg-[#0d1c2d] border border-white/8">
-              <div className="text-slate-400 text-[10px] uppercase">Template Outperformance</div>
-              <div className="text-base font-bold text-[#00FF87] mt-0.5">+14.6 xPts / Mo</div>
+            <h1 className="max-w-2xl text-[2.7rem] font-black leading-[1.02] tracking-[-.055em] sm:text-6xl lg:text-[4.4rem]">Know what to consider before <span className="text-[#c7f36b]">the deadline.</span></h1>
+            <p className="mt-6 max-w-xl text-base leading-7 text-slate-300 sm:text-lg">Bring your public FPL team into one clear workspace. Check your squad, understand transfer ideas and look ahead at the fixtures.</p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <button onClick={onOpenPlanner} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#c7f36b] px-5 text-sm font-black text-[#102018] transition hover:bg-[#d7ff84] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c7f36b]">Plan my team free <ArrowRight className="h-4 w-4" /></button>
+              <a href="#how-it-works" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/15 px-5 text-sm font-bold text-white transition hover:border-white/30 hover:bg-white/[.04]">How it works <ArrowDown className="h-4 w-4" /></a>
             </div>
-            <div className="p-3 rounded-lg bg-[#0d1c2d] border border-white/8 col-span-2 sm:col-span-1">
-              <div className="text-slate-400 text-[10px] uppercase">Global OR Rank</div>
-              <div className="text-base font-bold text-[#38BDF8] mt-0.5">Top 1.4% Proven</div>
+            <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-400">
+              <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-[#c7f36b]" /> No FPL password</span>
+              <span className="inline-flex items-center gap-1.5"><Check className="h-4 w-4 text-[#c7f36b]" /> 3 ideas free each Gameweek</span>
+              <span className="inline-flex items-center gap-1.5"><Check className="h-4 w-4 text-[#c7f36b]" /> You make every transfer</span>
             </div>
           </div>
-        </div>
 
-        {/* Right: Login & Authentication Card */}
-        <div className="lg:w-5/12 w-full max-w-md">
-          <div className="rounded-2xl bg-[#0d1c2d] border border-white/12 shadow-2xl p-6 sm:p-8 relative overflow-hidden backdrop-blur-xl">
-            {/* Top Accent Line */}
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#00FF87] via-[#38BDF8] to-[#00FF87]"></div>
-
-            <div className="mb-6">
-              <div className="flex items-center justify-between text-xs font-mono text-slate-400 mb-1">
-                <span>TACTICAL ACCESS PORTAL</span>
-                <span className="text-[#00FF87] font-semibold">ENCRYPTED</span>
+          <div className="relative mx-auto w-full max-w-[600px] lg:ml-auto">
+            <div className="absolute -inset-6 rounded-[32px] bg-[#c7f36b]/[.055] blur-2xl" />
+            <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-[#0c1d15] p-4 shadow-[0_30px_100px_rgba(0,0,0,.4)] sm:p-6">
+              <div className="flex items-center justify-between border-b border-white/8 pb-4">
+                <div><p className="text-[10px] font-bold uppercase tracking-[.19em] text-slate-500">Your Gameweek brief</p><h2 className="mt-1 text-xl font-extrabold tracking-tight sm:text-2xl">One clear place to start</h2></div>
+                <span className="rounded-full border border-[#c7f36b]/20 bg-[#c7f36b]/[.08] px-3 py-1.5 font-mono text-xs font-bold text-[#d9ffa1]">MY TEAM</span>
               </div>
-              <h2 className="text-2xl font-extrabold text-white font-sans">
-                Sign In to PLAYXI
-              </h2>
-              <p className="text-slate-400 text-xs mt-1">
-                Access your starting XI cockpit, transfer solver &amp; live FDR matrix.
-              </p>
-            </div>
-
-            {/* Auth Method Tabs: EMAIL vs PHONE */}
-            <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-[#122131] border border-white/8 mb-6">
-              <button
-                type="button"
-                onClick={() => setAuthMethod('email')}
-                className={`flex items-center justify-center gap-2 py-2 rounded text-xs font-semibold transition-all cursor-pointer ${
-                  authMethod === 'email'
-                    ? 'bg-[#00FF87] text-[#051424] shadow'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                <Mail className="w-3.5 h-3.5" />
-                <span>Email Address</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setAuthMethod('phone')}
-                className={`flex items-center justify-center gap-2 py-2 rounded text-xs font-semibold transition-all cursor-pointer ${
-                  authMethod === 'phone'
-                    ? 'bg-[#00FF87] text-[#051424] shadow'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                <Phone className="w-3.5 h-3.5" />
-                <span>Phone Number</span>
-              </button>
-            </div>
-
-            {/* Tab 1: Email Login Form */}
-            {authMethod === 'email' && (
-              <form onSubmit={handleEmailSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-[11px] font-mono text-slate-300 font-semibold mb-1">
-                    EMAIL ADDRESS
-                  </label>
-                  <div className="relative">
-                    <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="email"
-                      required
-                      value={emailInput}
-                      onChange={(e) => setEmailInput(e.target.value)}
-                      placeholder="manager@premierleague.com"
-                      className="w-full bg-[#162638] border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#00FF87] font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between text-[11px] font-mono mb-1">
-                    <span className="text-slate-300 font-semibold">PASSWORD / MASTER KEY</span>
-                    <a href="#" className="text-[#00FF87] hover:underline text-[10px]">
-                      Forgot?
-                    </a>
-                  </div>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="password"
-                      required
-                      value={passwordInput}
-                      onChange={(e) => setPasswordInput(e.target.value)}
-                      placeholder="••••••••••••"
-                      className="w-full bg-[#162638] border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#00FF87] font-mono"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full py-3 rounded-lg bg-[#00FF87] hover:bg-[#00e478] text-[#051424] font-extrabold text-xs transition-all shadow-lg shadow-[#00FF87]/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                >
-                  <span>{isLoading ? 'AUTHENTICATING...' : 'ENTER TACTICAL COCKPIT'}</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </form>
-            )}
-
-            {/* Tab 2: Phone Login Form */}
-            {authMethod === 'phone' && (
-              <div className="space-y-4">
-                {!otpSent ? (
-                  <form onSubmit={handlePhoneSendOtp} className="space-y-4">
-                    <div>
-                      <label className="block text-[11px] font-mono text-slate-300 font-semibold mb-1">
-                        MOBILE PHONE NUMBER
-                      </label>
-                      <div className="flex gap-2">
-                        <select
-                          value={countryCode}
-                          onChange={(e) => setCountryCode(e.target.value)}
-                          className="w-24 bg-[#162638] border border-white/10 rounded-lg px-2 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-[#00FF87] cursor-pointer shrink-0"
-                        >
-                          <option value="+44">🇬🇧 +44</option>
-                          <option value="+1">🇺🇸 +1</option>
-                          <option value="+91">🇮🇳 +91</option>
-                          <option value="+61">🇦🇺 +61</option>
-                          <option value="+353">🇮🇪 +353</option>
-                          <option value="+47">🇳🇴 +47</option>
-                        </select>
-                        <div className="relative flex-1">
-                          <Smartphone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                          <input
-                            type="tel"
-                            required
-                            value={phoneInput}
-                            onChange={(e) => setPhoneInput(e.target.value)}
-                            placeholder="7911 123456"
-                            className="w-full bg-[#162638] border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#00FF87] font-mono"
-                          />
-                        </div>
-                      </div>
-                      <p className="text-[10px] text-slate-400 mt-1">
-                        We will send a 6-digit verification code via SMS.
-                      </p>
-                    </div>
-
-                    <button
-                      type="submit"
-                      className="w-full py-3 rounded-lg bg-[#00FF87] hover:bg-[#00e478] text-[#051424] font-extrabold text-xs transition-all shadow-lg shadow-[#00FF87]/20 flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <span>SEND 6-DIGIT CODE</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  </form>
-                ) : (
-                  <form onSubmit={handlePhoneVerify} className="space-y-4">
-                    <div>
-                      <div className="flex items-center justify-between text-[11px] font-mono mb-1.5">
-                        <span className="text-slate-300 font-semibold">ENTER SMS CODE</span>
-                        <span className="text-[#00FF87] font-semibold">{countryCode} {phoneInput}</span>
-                      </div>
-                      <div className="grid grid-cols-6 gap-2">
-                        {otpCode.map((digit, i) => (
-                          <input
-                            key={i}
-                            type="text"
-                            maxLength={1}
-                            value={digit}
-                            onChange={(e) => {
-                              const newOtp = [...otpCode];
-                              newOtp[i] = e.target.value;
-                              setOtpCode(newOtp);
-                            }}
-                            className="h-10 text-center font-mono font-bold text-sm bg-[#162638] border border-white/10 rounded-lg text-white focus:outline-none focus:border-[#00FF87]"
-                          />
-                        ))}
-                      </div>
-                      <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 mt-2">
-                        <span>Expires in 00:{timer < 10 ? `0${timer}` : timer}</span>
-                        <button
-                          type="button"
-                          onClick={() => setOtpSent(false)}
-                          className="text-[#00FF87] hover:underline"
-                        >
-                          Change Number
-                        </button>
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={isLoading}
-                      className="w-full py-3 rounded-lg bg-[#00FF87] hover:bg-[#00e478] text-[#051424] font-extrabold text-xs transition-all shadow-lg shadow-[#00FF87]/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                    >
-                      <span>{isLoading ? 'VERIFYING CODE...' : 'VERIFY & ENTER COCKPIT'}</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  </form>
-                )}
+              <div className="mt-4 grid grid-cols-3 gap-2.5 sm:gap-3">
+                {[['SQUAD', '15', 'players'], ['BANK', '£4.5m', 'available'], ['IDEAS', '03', 'free this GW']].map(([label, value, detail]) => <div key={label} className="rounded-2xl border border-white/8 bg-[#102319] p-3 sm:p-4"><div className="text-[9px] font-bold tracking-[.14em] text-slate-500 sm:text-[10px]">{label}</div><div className="mt-2 text-xl font-black tracking-tight text-white sm:text-2xl">{value}</div><div className="mt-1 text-[10px] text-slate-400 sm:text-xs">{detail}</div></div>)}
               </div>
-            )}
-
-            {/* Instant Demo Access (Frictionless Testing) */}
-            <div className="mt-5 pt-4 border-t border-white/8">
-              <button
-                type="button"
-                onClick={handleOneClickDemo}
-                className="w-full py-2.5 px-3 rounded-lg bg-[#162638] hover:bg-[#1e344e] text-slate-200 hover:text-white border border-white/10 text-xs font-mono font-semibold flex items-center justify-between transition-all cursor-pointer group"
-              >
-                <div className="flex items-center gap-2 text-left">
-                  <div className="w-2 h-2 rounded-full bg-[#00FF87] animate-pulse"></div>
-                  <div>
-                    <div className="text-white text-[11px] font-bold font-sans">
-                      One-Click Demo Account
-                    </div>
-                    <div className="text-[10px] text-slate-400">
-                      Alex Sterling (Top 1.4% OR)
-                    </div>
-                  </div>
+              <div className="mt-4 rounded-2xl border border-[#c7f36b]/20 bg-gradient-to-br from-[#182d1c] to-[#102319] p-4 sm:p-5">
+                <div className="flex items-start justify-between gap-3"><div className="flex items-center gap-2 text-sm font-bold"><span className="grid h-8 w-8 place-items-center rounded-xl bg-[#c7f36b]/10 text-[#c7f36b]"><Sparkles className="h-4 w-4" /></span>Transfer idea</div><span className="rounded-full bg-[#c7f36b]/10 px-2.5 py-1 text-[10px] font-bold text-[#d9ffa1]">EXAMPLE VIEW</span></div>
+                <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-xl border border-white/8 bg-[#07150f]/70 p-3 sm:gap-3 sm:p-4">
+                  <div><div className="text-[9px] font-bold uppercase tracking-widest text-rose-300/80">Consider selling</div><div className="mt-1 font-bold">Your player</div><div className="text-xs text-slate-400">Sale value shown</div></div>
+                  <ArrowRightLeft className="h-4 w-4 text-slate-500" />
+                  <div><div className="text-[9px] font-bold uppercase tracking-widest text-[#c7f36b]/80">Possible replacement</div><div className="mt-1 font-bold">Same position</div><div className="text-xs text-slate-400">Fits available budget</div></div>
                 </div>
-                <span className="text-[#00FF87] group-hover:translate-x-0.5 transition-transform text-xs">
-                  Instant Access →
-                </span>
-              </button>
+                <div className="mt-3 flex items-center justify-between gap-3 text-xs"><span className="text-slate-400">Expected points difference</span><span className="rounded-lg bg-[#c7f36b]/10 px-2.5 py-1.5 font-mono font-bold text-[#d9ffa1]">+ next-GW xP</span></div>
+              </div>
+              <p className="mt-3 text-center text-[10px] text-slate-500">Illustrative layout · your live team data appears after you connect</p>
             </div>
           </div>
-        </div>
+        </section>
+
+        <section id="how-it-works" className="border-y border-white/8 bg-[#0a1911]">
+          <div className="mx-auto max-w-7xl px-5 py-14 sm:px-10 sm:py-16">
+            <div className="max-w-xl"><p className="text-xs font-bold uppercase tracking-[.18em] text-[#c7f36b]">Three simple steps</p><h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">From Team ID to a better-informed plan</h2></div>
+            <div className="mt-8 grid gap-3 md:grid-cols-3">
+              {[
+                ['01', 'Connect your team', 'Use your public FPL Team ID. Your password stays private.'],
+                ['02', 'See your Gameweek', 'Review your real squad, budget and the players who need a closer look.'],
+                ['03', 'Compare your options', 'Read the reasons and trade-offs, then make your own decision.'],
+              ].map(([number, title, body]) => <article key={number} className="rounded-2xl border border-white/8 bg-[#0c1d15] p-5 sm:p-6"><span className="font-mono text-xs font-bold text-[#c7f36b]">STEP {number}</span><h3 className="mt-5 text-lg font-extrabold">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-400">{body}</p></article>)}
+            </div>
+          </div>
+        </section>
+
+        <section id="tools" className="mx-auto max-w-7xl px-5 py-14 sm:px-10 sm:py-16">
+          <div className="grid gap-8 md:grid-cols-[.8fr_1.2fr] md:items-end"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#c7f36b]">Made for FPL decisions</p><h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Your team. The context around it.</h2></div><p className="max-w-2xl text-sm leading-6 text-slate-400">Use current Fantasy Premier League data to explore your squad, player stats and upcoming fixtures. Projections are estimates, not promises.</p></div>
+          <div className="mt-8 grid gap-3 sm:grid-cols-3">
+            {[{ icon: Users, title: 'My Team', text: 'Your squad, points, bank and transfer ideas in a Gameweek-first view.' }, { icon: BarChart3, title: 'Players', text: 'Search, filter and compare the current FPL player catalogue.' }, { icon: CalendarDays, title: 'Fixtures', text: 'Look ahead at upcoming opponents and official fixture difficulty.' }].map(({ icon: Icon, title, text }) => <article key={title} className="rounded-2xl border border-white/8 bg-[#0c1d15] p-5 transition hover:-translate-y-0.5 hover:border-[#c7f36b]/25"><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#c7f36b]/10 text-[#c7f36b]"><Icon className="h-5 w-5" /></span><h3 className="mt-4 font-extrabold">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-400">{text}</p></article>)}
+          </div>
+        </section>
+
+        <section id="pricing" className="border-t border-white/8 bg-[#0a1911]">
+          <div className="mx-auto max-w-7xl px-5 py-14 sm:px-10 sm:py-16">
+            <div className="mx-auto max-w-2xl text-center"><p className="text-xs font-bold uppercase tracking-[.18em] text-[#c7f36b]">Free to start</p><h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Three useful ideas, on us.</h2><p className="mt-3 text-sm leading-6 text-slate-400">Start with your team, player stats, fixtures and three transfer ideas each Gameweek.</p></div>
+            <div className="mx-auto mt-8 grid max-w-3xl gap-3 md:grid-cols-2">
+              <article className="rounded-2xl border border-[#c7f36b]/30 bg-[#102319] p-6"><p className="text-sm font-bold text-[#c7f36b]">Free planner</p><div className="mt-3 text-4xl font-black">₹0</div><p className="mt-2 text-sm text-slate-400">Every Gameweek</p><ul className="mt-5 space-y-3 text-sm text-slate-300"><li className="flex gap-2"><Check className="h-4 w-4 text-[#c7f36b]" /> My Team, Players and Fixtures</li><li className="flex gap-2"><Check className="h-4 w-4 text-[#c7f36b]" /> 3 transfer ideas per Gameweek</li></ul><button onClick={onOpenPlanner} className="mt-6 min-h-12 w-full rounded-xl bg-[#c7f36b] px-4 text-sm font-black text-[#102018] transition hover:bg-[#d7ff84]">Open the free planner</button></article>
+              <article className="rounded-2xl border border-white/10 bg-[#0c1d15] p-6"><p className="text-sm font-bold text-slate-200">Gameweek unlock</p><div className="mt-3 text-4xl font-black">₹29 <span className="text-base font-semibold text-slate-400">/ GW</span></div><p className="mt-2 text-sm text-slate-400">One-time · no subscription</p><ul className="mt-5 space-y-3 text-sm text-slate-300"><li className="flex gap-2"><Check className="h-4 w-4 text-[#c7f36b]" /> Up to 5 more transfer ideas</li><li className="flex gap-2"><Check className="h-4 w-4 text-[#c7f36b]" /> Access for one Gameweek</li></ul><button type="button" disabled className="mt-6 min-h-12 w-full cursor-not-allowed rounded-xl border border-white/10 bg-white/[.04] px-4 text-sm font-bold text-slate-500">Payments not available yet</button><p className="mt-3 text-center text-xs text-slate-500">Unlock will be enabled after payment setup.</p></article>
+            </div>
+          </div>
+        </section>
       </main>
 
-      {/* 3. Footer Bar */}
-      <footer className="border-t border-white/8 py-6 px-6 sm:px-12 text-center text-xs text-slate-400 font-mono">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 max-w-7xl mx-auto">
-          <div>PLAYXI v2.4 TAC • Premier League &amp; Fantasy Premier League Tactical Intelligence</div>
-          <div className="flex items-center gap-6">
-            <span>Server Cluster: EU-WEST-1</span>
-            <span>Opta AI Grounding</span>
-            <span>Privacy &amp; Security</span>
-          </div>
-        </div>
-      </footer>
+      <footer className="border-t border-white/8 px-5 py-6 text-center text-xs text-slate-500 sm:px-10">Play XI is an independent FPL planning tool. Recommendations are informational; every FPL transfer stays under your control.</footer>
     </div>
   );
-};
+}

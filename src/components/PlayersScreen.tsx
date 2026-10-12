@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Download, RefreshCw, Search, Users, X } from 'lucide-react';
 import type { FplBootstrap, FplPlayer, FplPosition } from '../types/football';
 import { fplAvailability, formatFplPrice } from '../utils/fpl';
+import { PlayerPortrait, TeamBadge } from './FplIdentity';
 
 const positions: Array<'ALL' | FplPosition> = ['ALL', 'GKP', 'DEF', 'MID', 'FWD'];
 type SortKey = 'totalPoints' | 'expectedPointsNext' | 'form' | 'cost';
@@ -31,6 +32,7 @@ export function PlayersScreen() {
   const [position, setPosition] = useState<'ALL' | FplPosition>('ALL');
   const [sortBy, setSortBy] = useState<SortKey>('totalPoints');
   const [compareIds, setCompareIds] = useState<number[]>([]);
+  const [visiblePlayerCount, setVisiblePlayerCount] = useState(24);
 
   async function loadPlayers() {
     setLoading(true);
@@ -101,7 +103,17 @@ export function PlayersScreen() {
       {!loading && error && <div className="rounded-xl border border-rose-900 bg-[#0d1c2d] p-8 text-center"><p className="text-sm text-rose-200">{error}</p><button onClick={() => void loadPlayers()} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#00FF87] px-4 py-2 text-sm font-bold text-[#051424]"><RefreshCw className="h-4 w-4" /> Try again</button></div>}
       {!loading && !error && data && <>
         <div className="flex items-center gap-2 text-xs text-slate-400"><Users className="h-4 w-4 text-[#00FF87]" /> {players.length} players <span>·</span> Data refreshed {new Date(data.fetchedAt).toLocaleString()}</div>
-        <div className="overflow-hidden rounded-xl border border-white/10 bg-[#0d1c2d]"><div className="max-h-[68vh] overflow-auto">
+        <div className="space-y-2.5 xl:hidden">{players.slice(0, visiblePlayerCount).map((player) => {
+          const status = fplAvailability(player);
+          const isCompared = compareIds.includes(player.id);
+          return <article key={player.id} className="rounded-2xl border border-white/8 bg-[#0d1c2d] p-4">
+            <div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><PlayerPortrait photo={player.photo} name={player.webName} /><div className="min-w-0"><div className="flex items-center gap-2"><h2 className="truncate font-bold text-white">{player.webName}</h2><span className="shrink-0 rounded-md bg-white/[.06] px-2 py-0.5 text-[10px] font-bold text-slate-300">{player.position}</span></div><p className="mt-1 flex items-center gap-1.5 truncate text-xs text-slate-400"><TeamBadge code={player.teamCode} name={player.teamName} size={16} />{player.teamName}</p></div></div><button onClick={() => toggleCompare(player.id)} className={`shrink-0 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold ${isCompared ? 'border-[#00FF87]/40 bg-[#00FF87]/10 text-[#00FF87]' : 'border-white/10 text-slate-300'}`}>{isCompared ? 'Selected' : 'Compare'}</button></div>
+            <div className="mt-4 grid grid-cols-4 gap-2 border-y border-white/6 py-3"><div><div className="text-[9px] uppercase tracking-wider text-slate-500">Price</div><div className="mt-1 font-mono text-xs font-semibold text-slate-200">{formatFplPrice(player.cost)}</div></div><div><div className="text-[9px] uppercase tracking-wider text-slate-500">Points</div><div className="mt-1 font-mono text-xs font-semibold text-slate-200">{player.totalPoints}</div></div><div><div className="text-[9px] uppercase tracking-wider text-slate-500">Form</div><div className="mt-1 font-mono text-xs font-semibold text-slate-200">{player.form.toFixed(1)}</div></div><div><div className="text-[9px] uppercase tracking-wider text-slate-500">Next xP</div><div className="mt-1 font-mono text-xs font-bold text-[#00FF87]">{player.expectedPointsNext.toFixed(1)}</div></div></div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px]"><span className="text-slate-400">Owned {player.selectedByPercent.toFixed(1)}% · {player.goals} goals / {player.assists} assists</span>{status ? <span className="rounded-full bg-amber-300/10 px-2 py-1 font-semibold text-amber-200">{status}</span> : <span className="rounded-full bg-emerald-300/10 px-2 py-1 font-semibold text-emerald-200">Available</span>}</div>
+            {status && player.news && <p className="mt-2 line-clamp-2 text-xs text-slate-500">{player.news}</p>}
+          </article>;
+        })}{players.length > visiblePlayerCount && <button onClick={() => setVisiblePlayerCount((count) => count + 24)} className="w-full rounded-xl border border-white/10 bg-[#0d1c2d] px-4 py-3 text-sm font-semibold text-slate-300 transition hover:border-[#00FF87]/30 hover:text-white">Show more players ({players.length - visiblePlayerCount} remaining)</button>}</div>
+        <div className="hidden overflow-hidden rounded-xl border border-white/10 bg-[#0d1c2d] xl:block"><div className="max-h-[68vh] overflow-auto">
           <table className="w-full min-w-[1050px] border-collapse text-left text-sm"><thead className="sticky top-0 z-10 bg-[#091726] text-[10px] font-mono uppercase tracking-wider text-slate-400"><tr>
             <th className="px-3 py-3">Compare</th><th className="px-4 py-3">Player</th><th className="px-4 py-3">Team</th><th className="px-3 py-3">Pos</th><th className="px-3 py-3">Price</th><th className="px-3 py-3">Pts</th><th className="px-3 py-3">Form</th><th className="px-3 py-3">Next GW xP</th><th className="px-3 py-3">Owned</th><th className="px-3 py-3">G / A</th><th className="px-4 py-3">Availability</th>
           </tr></thead><tbody className="divide-y divide-white/5 text-slate-200">{players.map((player) => {
