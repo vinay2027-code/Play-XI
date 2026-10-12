@@ -1,10 +1,35 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { ArrowRightLeft, ArrowUpRight, CalendarDays, Link2, ShieldAlert, Sparkles, Users } from 'lucide-react';
-import type { FplBootstrap, FplEntry, FplPicksResponse, FplRecommendationsResponse, FplTransferRecord } from '../types/football';
+import type { FplBootstrap, FplEntry, FplPick, FplPicksResponse, FplRecommendationsResponse, FplTransferRecord } from '../types/football';
 import { fplAvailability, formatFplPrice, formatLocalDateTime } from '../utils/fpl';
 import { PlayerPortrait, TeamBadge } from './FplIdentity';
 
 const STORAGE_KEY = 'playxi-fpl-entry-id';
+type LineupPlan = { key: string; starters: number[]; bench: number[]; captain: number; viceCaptain: number };
+
+function lineupPlanKey(entryId: string, eventId: number) { return `playxi-lineup:${entryId}:${eventId}`; }
+
+function isValidPlan(plan: LineupPlan, picks: FplPick[], players: FplBootstrap['players']) {
+  const rosterIds = new Set(picks.map((pick) => pick.element));
+  if (plan.starters.length !== 11 || plan.bench.length !== 4 || new Set([...plan.starters, ...plan.bench]).size !== 15) return false;
+  if ([...plan.starters, ...plan.bench].some((id) => !rosterIds.has(id))) return false;
+  if (!plan.starters.includes(plan.captain) || !plan.starters.includes(plan.viceCaptain) || plan.captain === plan.viceCaptain) return false;
+  const playerById = new Map(players.map((player) => [player.id, player]));
+  const positions = plan.starters.map((id) => playerById.get(id)?.position);
+  const gkCount = positions.filter((position) => position === 'GKP').length;
+  const defCount = positions.filter((position) => position === 'DEF').length;
+  const midCount = positions.filter((position) => position === 'MID').length;
+  const fwdCount = positions.filter((position) => position === 'FWD').length;
+  const clubCounts = new Map<number, number>();
+  for (const id of plan.starters) {
+    const player = playerById.get(id);
+    if (!player) return false;
+    clubCounts.set(player.teamId, (clubCounts.get(player.teamId) ?? 0) + 1);
+  }
+  return gkCount === 1 && defCount >= 3 && defCount <= 5 && midCount >= 2 && midCount <= 5 && fwdCount >= 1 && fwdCount <= 3
+    && plan.bench.filter((id) => playerById.get(id)?.position === 'GKP').length === 1
+    && [...clubCounts.values()].every((count) => count <= 3);
+}
 
 function rank(value?: number) { return value ? value.toLocaleString() : '—'; }
 
@@ -34,6 +59,13 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures }: { onBrowsePl
   const [planningEventId, setPlanningEventId] = useState<number | null>(null);
   const [asOfEventId, setAsOfEventId] = useState<number | null>(null);
   const [planningBankTenths, setPlanningBankTenths] = useState<number | null>(null);
+  const [manualPlan, setManualPlan] = useState<LineupPlan | null>(null);
+  const [draftStarters, setDraftStarters] = useState<number[]>([]);
+  const [draftBench, setDraftBench] = useState<number[]>([]);
+  const [draftCaptain, setDraftCaptain] = useState<number | null>(null);
+  const [draftViceCaptain, setDraftViceCaptain] = useState<number | null>(null);
+  const [editingLineup, setEditingLineup] = useState(false);
+  const [lineupMessage, setLineupMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -54,6 +86,9 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures }: { onBrowsePl
     setPlanningEventId(null);
     setAsOfEventId(null);
     setPlanningBankTenths(null);
+    setManualPlan(null);
+    setEditingLineup(false);
+    setLineupMessage('');
     try {
       const [entryResponse, bootstrapResponse, recommendationsResult] = await Promise.all([
         fetch(`/api/fpl/entry/${cleanId}`),
@@ -108,6 +143,14 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures }: { onBrowsePl
         for (const transfer of interveningTransfers) {
           if (bankTenths !== null) bankTenths += transfer.element_out_cost - transfer.element_in_cost;
         }
+        if (picksData.picks.length === 15) {
+          const currentRoster = picksData.picks.map((pick) => ({ ...pick, is_captain: false, is_vice_captain: false, multiplier: 1 }));
+          for (const transfer of interveningTransfers) {
+            const outgoingIndex = currentRoster.findIndex((pick) => pick.element === transfer.element_out);
+            if (outgoingIndex >= 0) currentRoster[outgoingIndex] = { ...currentRoster[outgoingIndex], element: transfer.element_in };
+          }
+          picksData = { ...picksData, automatic_subs: [], picks: currentRoster };
+        }
       }
       setEntry(entryData);
       setBootstrap(bootData);
@@ -136,7 +179,32 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures }: { onBrowsePl
   }, []);
 
   const playerById = useMemo(() => new Map((bootstrap?.players ?? []).map((player) => [player.id, player])), [bootstrap]);
-  const lineup = useMemo(() => picksWithAutomaticSubs(picks), [picks]);
+  const picksAreForPreviousEvent = asOfEventId !== null && planningEventId !== null && asOfEventId !== planningEventId;
+  const picksEventLabel = bootstrap?.events.find((event) => event.id === asOfEventId)?.name ?? (asOfEventId ? `Gameweek ${asOfEventId}` : 'published Gameweek');
+  const currentPlanKey = entryId && planningEventId !== null ? lineupPlanKey(entryId, planningEventId) : '';
+
+  useEffect(() => {
+    if (!picks || !bootstrap || !currentPlanKey || !picksAreForPreviousEvent) return;
+    try {
+      const saved = window.localStorage.getItem(currentPlanKey);
+      const parsed = saved ? JSON.parse(saved) as LineupPlan : null;
+      if (parsed && parsed.key === currentPlanKey && isValidPlan(parsed, picks.picks, bootstrap.players)) setManualPlan(parsed);
+      else setManualPlan(null);
+    } catch {
+      setManualPlan(null);
+    }
+  }, [picks, bootstrap, currentPlanKey, picksAreForPreviousEvent]);
+
+  const baseLineup = useMemo(() => picksAreForPreviousEvent ? (picks?.picks ?? []) : picksWithAutomaticSubs(picks), [picks, picksAreForPreviousEvent]);
+  const lineup = useMemo(() => {
+    if (!picks || !bootstrap || !manualPlan || manualPlan.key !== currentPlanKey || !isValidPlan(manualPlan, picks.picks, bootstrap.players)) return baseLineup;
+    const planOrder = [...manualPlan.starters, ...manualPlan.bench];
+    return planOrder.map((id, index) => {
+      const pick = baseLineup.find((candidate) => candidate.element === id);
+      if (!pick) return null;
+      return { ...pick, position: index + 1, is_captain: id === manualPlan.captain, is_vice_captain: id === manualPlan.viceCaptain, multiplier: id === manualPlan.captain ? 2 : 1 };
+    }).filter((pick): pick is FplPick => pick !== null);
+  }, [picks, bootstrap, manualPlan, currentPlanKey, baseLineup]);
   const automaticSubIns = useMemo(() => new Set((picks?.automatic_subs ?? []).map((substitution) => substitution.element_in)), [picks]);
   const automaticSubOuts = useMemo(() => new Set((picks?.automatic_subs ?? []).map((substitution) => substitution.element_out)), [picks]);
   const { startingPicks, benchPicks, positionRows, formation, startingExpectedPoints } = useMemo(() => {
@@ -158,13 +226,61 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures }: { onBrowsePl
   const recommendationList = recommendations?.freeIdeas ?? [];
   const selectedEvent = bootstrap?.events.find((event) => event.id === planningEventId)
     ?? bootstrap?.events.find((event) => event.id === (bootstrap.currentEvent ?? bootstrap.nextEvent));
-  const picksEvent = bootstrap?.events.find((event) => event.id === asOfEventId);
-  const picksAreForPreviousEvent = asOfEventId !== null && planningEventId !== null && asOfEventId !== planningEventId;
-  const picksEventLabel = picksEvent?.name ?? (asOfEventId ? `Gameweek ${asOfEventId}` : 'published Gameweek');
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void loadTeam(entryId, true);
+  }
+
+  function beginLineupEdit() {
+    setDraftStarters(lineup.filter((pick) => pick.position <= 11).sort((a, b) => a.position - b.position).map((pick) => pick.element));
+    setDraftBench(lineup.filter((pick) => pick.position > 11).sort((a, b) => a.position - b.position).map((pick) => pick.element));
+    const starters = lineup.filter((pick) => pick.position <= 11).sort((a, b) => a.position - b.position);
+    setDraftCaptain(starters.find((pick) => pick.is_captain)?.element ?? starters[0]?.element ?? null);
+    setDraftViceCaptain(starters.find((pick) => pick.is_vice_captain)?.element ?? starters[1]?.element ?? null);
+    setLineupMessage('');
+    setEditingLineup(true);
+  }
+
+  function toggleStarter(element: number) {
+    if (draftStarters.includes(element)) {
+      setDraftStarters((current) => current.filter((id) => id !== element));
+      setDraftBench((current) => [...current.filter((id) => id !== element), element]);
+      if (draftCaptain === element) setDraftCaptain(null);
+      if (draftViceCaptain === element) setDraftViceCaptain(null);
+    } else {
+      setDraftStarters((current) => current.length >= 11 ? current : [...current, element]);
+      setDraftBench((current) => current.filter((id) => id !== element));
+    }
+  }
+
+  function saveLineup() {
+    if (!picks || !bootstrap || !currentPlanKey || draftCaptain === null || draftViceCaptain === null) {
+      setLineupMessage('Choose a captain and vice-captain from your starting XI.');
+      return;
+    }
+    const orderedBench = [...draftBench].sort((a, b) => Number(playerById.get(b)?.position === 'GKP') - Number(playerById.get(a)?.position === 'GKP'));
+    const plan: LineupPlan = { key: currentPlanKey, starters: draftStarters, bench: orderedBench, captain: draftCaptain, viceCaptain: draftViceCaptain };
+    if (!isValidPlan(plan, picks.picks, bootstrap.players)) {
+      setLineupMessage('Choose 11 starters with a legal FPL formation, one goalkeeper on the bench, and no more than three players from one club.');
+      return;
+    }
+    window.localStorage.setItem(currentPlanKey, JSON.stringify(plan));
+    setManualPlan(plan);
+    setEditingLineup(false);
+    setLineupMessage(`Saved your ${selectedEvent?.name ?? 'Gameweek'} plan on this device.`);
+  }
+
+  function moveBench(element: number, direction: -1 | 1) {
+    setDraftBench((current) => {
+      if (playerById.get(element)?.position === 'GKP') return current;
+      const index = current.indexOf(element);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
+      const next = [...current];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
   }
 
   return (
@@ -196,9 +312,46 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures }: { onBrowsePl
         {picks && <>
           <section aria-labelledby="starting-xi-title" className="overflow-hidden rounded-3xl border border-white/10 bg-[#0d1c2d] shadow-xl">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/8 px-4 py-4 sm:px-6">
-              <div><div className="mb-1 text-[10px] font-bold uppercase tracking-[.18em] text-[#00FF87]">{picksAreForPreviousEvent ? `Last published · ${picksEventLabel}` : selectedEvent?.name ?? 'Next Gameweek'}</div><h2 id="starting-xi-title" className="text-xl font-black tracking-tight text-white sm:text-2xl">{picksAreForPreviousEvent ? 'Last confirmed XI' : 'Your starting XI'}</h2><p className="mt-1 text-xs text-slate-400">{picksAreForPreviousEvent ? `Showing official ${picksEventLabel} picks and substitutions. FPL has not published picks for ${selectedEvent?.name ?? 'the upcoming Gameweek'} yet, so its lineup and formation may differ.` : 'Your official FPL lineup, including any automatic substitutions.'}</p></div>
+              <div><div className="mb-1 text-[10px] font-bold uppercase tracking-[.18em] text-[#00FF87]">{picksAreForPreviousEvent ? `Planning · ${selectedEvent?.name ?? 'Next Gameweek'}` : selectedEvent?.name ?? 'Next Gameweek'}</div><h2 id="starting-xi-title" className="text-xl font-black tracking-tight text-white sm:text-2xl">{picksAreForPreviousEvent ? manualPlan?.key === currentPlanKey ? 'Your planned XI' : 'Plan your starting XI' : 'Your starting XI'}</h2><p className="mt-1 text-xs text-slate-400">{picksAreForPreviousEvent ? manualPlan?.key === currentPlanKey ? 'Your lineup, captain and bench order saved for this device.' : `FPL has not published ${selectedEvent?.name ?? 'the upcoming Gameweek'} picks yet. Set your own XI and bench below; the plan stays on this device.` : 'Your official FPL lineup, including any automatic substitutions.'}</p></div>
+              {picksAreForPreviousEvent && <button type="button" onClick={beginLineupEdit} className="rounded-lg border border-[#00FF87]/30 bg-[#00FF87]/10 px-3 py-2 text-xs font-bold text-[#b4ffd0] hover:bg-[#00FF87]/15">{manualPlan?.key === currentPlanKey ? 'Edit lineup' : 'Set lineup'}</button>}
               <div className="flex items-center gap-2"><span className="rounded-lg border border-white/10 bg-[#091726] px-3 py-2 text-xs font-bold text-white">{formation}</span><span className="rounded-lg border border-[#00FF87]/15 bg-[#00FF87]/[.07] px-3 py-2 text-xs font-bold text-[#adffd0]">{startingExpectedPoints.toFixed(1)} xP</span></div>
             </div>
+
+            {editingLineup && <div className="border-b border-white/8 bg-[#091726]/70 p-4 sm:p-6">
+              <div className="mb-4"><h3 className="font-bold text-white">Set your {selectedEvent?.name ?? 'Gameweek'} lineup</h3><p className="mt-1 text-xs leading-5 text-slate-400">Select 11 starters. FPL keeps upcoming picks private, so this plan is saved only in this browser and is never sent to FPL.</p></div>
+              <div className="grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {lineup.map((pick) => {
+                    const player = playerById.get(pick.element);
+                    if (!player) return null;
+                    const selected = draftStarters.includes(pick.element);
+                    return <label key={pick.element} className={`flex min-w-0 cursor-pointer items-center gap-2 rounded-xl border p-2.5 ${selected ? 'border-[#00FF87]/35 bg-[#00FF87]/[.06]' : 'border-white/8 bg-[#0d1c2d]'}`}>
+                      <input type="checkbox" checked={selected} onChange={() => toggleStarter(pick.element)} className="h-4 w-4 accent-[#00FF87]" />
+                      <PlayerPortrait photo={player.photo} name={player.webName} size="sm" />
+                      <span className="min-w-0 flex-1"><span className="block truncate text-xs font-bold text-white">{player.webName}</span><span className="flex items-center gap-1 text-[10px] text-slate-400"><TeamBadge code={player.teamCode} name={player.teamName} size={12} />{player.teamName} · {player.position}</span></span>
+                      <span className="text-[10px] font-semibold text-slate-500">{selected ? 'XI' : 'Bench'}</span>
+                    </label>;
+                  })}
+                </div>
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-white/8 bg-[#0d1c2d] p-3">
+                    <h4 className="mb-2 text-xs font-bold text-white">Bench order</h4>
+                    <div className="space-y-1.5">{[...draftBench].sort((a, b) => Number(playerById.get(b)?.position === 'GKP') - Number(playerById.get(a)?.position === 'GKP')).map((id, index) => {
+                      const player = playerById.get(id);
+                      if (!player) return null;
+                      const outfieldBenchPosition = draftBench.filter((benchId) => playerById.get(benchId)?.position !== 'GKP').indexOf(id) + 1;
+                      return <div key={id} className="flex items-center gap-2 text-xs text-slate-300"><span className="w-8 text-slate-500">{player.position === 'GKP' ? 'GK' : `Sub ${outfieldBenchPosition}`}</span><span className="min-w-0 flex-1 truncate">{player.webName}</span><button type="button" disabled={player.position === 'GKP' || outfieldBenchPosition === 1} onClick={() => moveBench(id, -1)} aria-label={`Move ${player.webName} up the bench`} className="rounded px-2 py-1 text-slate-300 hover:bg-white/10 disabled:opacity-30">↑</button><button type="button" disabled={player.position === 'GKP' || outfieldBenchPosition === 3} onClick={() => moveBench(id, 1)} aria-label={`Move ${player.webName} down the bench`} className="rounded px-2 py-1 text-slate-300 hover:bg-white/10 disabled:opacity-30">↓</button></div>;
+                    })}</div>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {[['Captain', draftCaptain, setDraftCaptain], ['Vice-captain', draftViceCaptain, setDraftViceCaptain]].map(([label, value, setter]) => <label key={String(label)} className="text-[10px] font-semibold text-slate-400">{String(label)}<select value={value == null ? '' : String(value)} onChange={(event) => (setter as (id: number | null) => void)(event.target.value ? Number(event.target.value) : null)} className="mt-1 block w-full rounded-lg border border-white/10 bg-[#091726] px-2 py-2 text-xs text-white">{draftStarters.map((id) => <option key={id} value={id}>{playerById.get(id)?.webName ?? `Player ${id}`}</option>)}</select></label>)}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2"><button type="button" onClick={saveLineup} className="rounded-lg bg-[#00FF87] px-4 py-2 text-xs font-bold text-[#051424] hover:bg-[#00e478]">Save plan</button><button type="button" onClick={() => setEditingLineup(false)} className="rounded-lg border border-white/10 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-white/5">Cancel</button><span className="text-xs text-slate-500">{draftStarters.length}/11 starters · {draftBench.length}/4 bench</span></div>
+                  {lineupMessage && <p role="status" className="text-xs text-amber-200">{lineupMessage}</p>}
+                </div>
+              </div>
+            </div>}
+            {!editingLineup && lineupMessage && <p role="status" className="px-4 pt-3 text-xs text-[#adffd0] sm:px-6">{lineupMessage}</p>}
 
             <div className="relative isolate mx-3 my-3 flex min-h-[450px] flex-col justify-between gap-4 overflow-hidden rounded-2xl border border-emerald-200/25 bg-[linear-gradient(90deg,rgba(255,255,255,.035)_1px,transparent_1px),linear-gradient(180deg,#07864f,#087446)] bg-[size:50%_100%,100%_25%] p-4 py-6 sm:mx-5 sm:my-5 sm:min-h-[560px] sm:gap-5 sm:p-7">
               <div aria-hidden="true" className="pointer-events-none absolute inset-3 rounded-xl border border-white/35" />
@@ -232,7 +385,7 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures }: { onBrowsePl
             </div>
 
             <div className="border-t border-white/8 bg-[#091726]/80 p-4 sm:px-6">
-              <div className="mb-3 flex items-center justify-between gap-3"><div><h3 className="text-sm font-bold text-white">Bench</h3><p className="text-[11px] text-slate-500">Substitution order from your FPL picks</p></div><span className="text-xs font-semibold text-slate-400">{benchPicks.length} reserves</span></div>
+              <div className="mb-3 flex items-center justify-between gap-3"><div><h3 className="text-sm font-bold text-white">Bench</h3><p className="text-[11px] text-slate-500">{manualPlan?.key === currentPlanKey ? 'Your saved substitute order' : 'Substitution order from your FPL picks'}</p></div><span className="text-xs font-semibold text-slate-400">{benchPicks.length} reserves</span></div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {benchPicks.map((pick) => {
                   const player = playerById.get(pick.element);
@@ -240,7 +393,7 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures }: { onBrowsePl
                   const issue = fplAvailability(player);
                   return <div key={pick.element} className="flex min-w-0 items-center gap-2 rounded-xl border border-white/8 bg-[#0d1c2d] p-2.5">
                     <PlayerPortrait photo={player.photo} name={player.webName} size="sm" />
-                    <div className="min-w-0"><div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{automaticSubOuts.has(pick.element) ? 'Auto-subbed out' : player.position === 'GKP' ? 'Reserve GK' : `Sub ${pick.position - 11}`}</div><div className="truncate text-xs font-bold text-white">{player.webName}</div><div className="flex items-center gap-1 text-[10px] text-slate-400"><TeamBadge code={player.teamCode} name={player.teamName} size={13} />{player.position} · {player.expectedPointsNext.toFixed(1)} xP</div></div>
+                    <div className="min-w-0"><div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{automaticSubOuts.has(pick.element) ? 'Auto-subbed out' : player.position === 'GKP' ? 'Reserve GK' : `Sub ${pick.position - 12}`}</div><div className="truncate text-xs font-bold text-white">{player.webName}</div><div className="flex items-center gap-1 text-[10px] text-slate-400"><TeamBadge code={player.teamCode} name={player.teamName} size={13} />{player.position} · {player.expectedPointsNext.toFixed(1)} xP</div></div>
                     {issue && <span title={issue} className="ml-auto text-amber-300"><ShieldAlert className="h-3.5 w-3.5" /></span>}
                   </div>;
                 })}
