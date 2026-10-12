@@ -178,8 +178,58 @@ function getSellingValueTenths(player, transfers, targetEventId) {
     : player.now_cost;
 }
 
-function buildTransferIdeas(bootstrap, picksData, transfers, bankTenths, targetEventId) {
+function getUpcomingFixtures(player, fixtures, targetEventId) {
+  return fixtures
+    .filter((fixture) => fixture.event !== null && fixture.event >= targetEventId && fixture.event < targetEventId + 3
+      && (fixture.homeTeamId === player.team || fixture.awayTeamId === player.team))
+    .sort((a, b) => (a.event - b.event) || String(a.kickoffTime || '').localeCompare(String(b.kickoffTime || '')))
+    .map((fixture) => {
+      const isHome = fixture.homeTeamId === player.team;
+      return {
+        label: `${isHome ? fixture.awayTeamShort : fixture.homeTeamShort} (${isHome ? 'H' : 'A'})`,
+        difficulty: isHome ? fixture.homeDifficulty : fixture.awayDifficulty,
+        event: fixture.event,
+      };
+    });
+}
+
+function fixtureOutlook(player, fixtures, targetEventId, teamNames) {
+  const upcoming = getUpcomingFixtures(player, fixtures, targetEventId);
+  if (!upcoming.length) return `${teamNames.get(player.team) || player.web_name}: no published fixtures in the next 3 GWs`;
+  const average = upcoming.reduce((total, fixture) => total + fixture.difficulty, 0) / upcoming.length;
+  const list = upcoming.map((fixture) => `${fixture.label} ${fixture.difficulty}`).join(', ');
+  return `${teamNames.get(player.team) || player.web_name}: avg FDR ${average.toFixed(1)} (${list})`;
+}
+
+function availabilityAndDiscipline(player) {
+  const statusLabels = { a: 'available', d: 'doubtful', i: 'injured', s: 'suspended', u: 'unavailable', n: 'not in squad' };
+  const availability = statusLabels[player.status] || 'status not supplied';
+  const chance = player.chance_of_playing_next_round === null || player.chance_of_playing_next_round === undefined
+    ? ''
+    : `, ${player.chance_of_playing_next_round}% chance`;
+  const reds = Number.isFinite(Number(player.red_cards)) ? Number(player.red_cards) : null;
+  const yellows = Number.isFinite(Number(player.yellow_cards)) ? Number(player.yellow_cards) : null;
+  const cards = `${reds === null ? 'cards n/a' : `${reds} red`}${yellows === null ? '' : `, ${yellows} yellow`}`;
+  return `${player.web_name}: ${availability}${chance}; ${cards}`;
+}
+
+function transferInsights(outgoing, incoming, fixtures, targetEventId, teamNames, delta) {
+  const fixtureText = `Fixtures · next 3 GWs — ${fixtureOutlook(incoming, fixtures, targetEventId, teamNames)} vs ${fixtureOutlook(outgoing, fixtures, targetEventId, teamNames)}`;
+  const points = (player) => `${Number(player.ep_next || 0).toFixed(1)} xP`;
+  const form = (player) => Number(player.form || 0).toFixed(1);
+  const production = (player) => `${Number(player.total_points || 0)} pts, ${Number(player.points_per_game || 0).toFixed(1)} PPG, ${Number(player.starts || 0)} starts, ${Number(player.goals_scored || 0)} goals, ${Number(player.assists || 0)} assists`;
+  return [
+    `Expected points · ${outgoing.web_name} ${points(outgoing)} → ${incoming.web_name} ${points(incoming)} (${delta > 0 ? '+' : ''}${delta.toFixed(1)} projected next-GW points)`,
+    `Recent form · ${outgoing.web_name} ${form(outgoing)} → ${incoming.web_name} ${form(incoming)} (FPL form)`,
+    fixtureText,
+    `Season performance · ${outgoing.web_name}: ${production(outgoing)} → ${incoming.web_name}: ${production(incoming)}`,
+    `Availability & cards · ${outgoing.web_name}: ${availabilityAndDiscipline(outgoing)} → ${incoming.web_name}: ${availabilityAndDiscipline(incoming)}`,
+  ];
+}
+
+function buildTransferIdeas(bootstrap, picksData, transfers, bankTenths, targetEventId, fixtures = []) {
   const playerById = new Map(bootstrap.elements.map((player) => [player.id, player]));
+  const teamById = new Map(bootstrap.teams.map((team) => [team.id, team]));
   const teamNames = new Map(bootstrap.teams.map((team) => [team.id, team.name]));
   const positions = new Map(bootstrap.element_types.map((position) => [position.id, position.singular_name_short]));
   const ownedIds = new Set(picksData.picks.map((pick) => pick.element));
@@ -194,7 +244,7 @@ function buildTransferIdeas(bootstrap, picksData, transfers, bankTenths, targetE
     && !['i', 's', 'u'].includes(player.status)
     && (player.status !== 'd' || (player.chance_of_playing_next_round ?? 0) >= 50),
   );
-  const moves = [];
+  const bestByOutgoing = new Map();
 
   for (const pick of picksData.picks) {
     const outgoing = playerById.get(pick.element);
@@ -212,46 +262,49 @@ function buildTransferIdeas(bootstrap, picksData, transfers, bankTenths, targetE
       if (clubCount + (incoming.team === outgoing.team ? 0 : 1) > 3) continue;
       const delta = Number(incoming.ep_next || 0) - Number(outgoing.ep_next || 0);
       if (delta <= 0 && !needsReplacement) continue;
-      const reasons = [];
-      if (delta > 0) reasons.push(`${delta.toFixed(1)} more FPL projected points next gameweek`);
-      if (Number(incoming.form || 0) > Number(outgoing.form || 0)) reasons.push(`stronger recent form (${Number(incoming.form).toFixed(1)} vs ${Number(outgoing.form).toFixed(1)})`);
-      if (outgoing.status !== 'a') reasons.push(`${outgoing.web_name} is unavailable or a doubt`);
-      if (incoming.now_cost < budget) reasons.push(`leaves £${((budget - incoming.now_cost) / 10).toFixed(1)} in the bank`);
-
-      moves.push({
+      const move = {
         outgoing: {
           id: outgoing.id, webName: outgoing.web_name, teamName: teamNames.get(outgoing.team) || 'Unknown team',
-          photo: outgoing.photo, teamCode: bootstrap.teams.find((team) => team.id === outgoing.team)?.code ?? null,
+          photo: outgoing.photo, teamCode: teamById.get(outgoing.team)?.code ?? null,
           position: positions.get(outgoing.element_type) || '—', cost: outgoing.now_cost / 10,
           expectedPointsNext: Number(outgoing.ep_next || 0), status: outgoing.status,
           chanceOfPlayingNext: outgoing.chance_of_playing_next_round ?? null,
         },
         incoming: {
           id: incoming.id, webName: incoming.web_name, teamName: teamNames.get(incoming.team) || 'Unknown team',
-          photo: incoming.photo, teamCode: bootstrap.teams.find((team) => team.id === incoming.team)?.code ?? null,
+          photo: incoming.photo, teamCode: teamById.get(incoming.team)?.code ?? null,
           position: positions.get(incoming.element_type) || '—', cost: incoming.now_cost / 10,
           expectedPointsNext: Number(incoming.ep_next || 0), form: Number(incoming.form || 0),
         },
         delta,
         saleValue,
-        reasons,
-      });
+        incomingForm: Number(incoming.form || 0),
+        incomingPlayer: incoming,
+        outgoingPlayer: outgoing,
+      };
+
+      const currentBest = bestByOutgoing.get(outgoing.id);
+      if (!currentBest || move.delta > currentBest.delta || (move.delta === currentBest.delta && move.incomingForm > currentBest.incomingForm)) {
+        bestByOutgoing.set(outgoing.id, move);
+      }
     }
   }
 
-  moves.sort((a, b) => b.delta - a.delta || b.incoming.form - a.incoming.form || a.outgoing.webName.localeCompare(b.outgoing.webName));
-  const bestByOutgoing = new Map();
-  for (const move of moves) {
-    if (!bestByOutgoing.has(move.outgoing.id)) bestByOutgoing.set(move.outgoing.id, move);
-  }
-  return [...bestByOutgoing.values()].slice(0, 8);
+  return [...bestByOutgoing.values()]
+    .sort((a, b) => b.delta - a.delta || b.incomingForm - a.incomingForm || a.outgoing.webName.localeCompare(b.outgoing.webName))
+    .slice(0, 8)
+    .map(({ incomingForm, incomingPlayer, outgoingPlayer, ...move }) => ({
+      ...move,
+      reasons: transferInsights(outgoingPlayer, incomingPlayer, fixtures, targetEventId, teamNames, move.delta),
+    }));
 }
 
 async function loadTransferPreview(entryId) {
-  const [bootstrap, entry, transferPayload] = await Promise.all([
+  const [bootstrap, entry, transferPayload, fixturePayload] = await Promise.all([
     fetchFplCached('bootstrap-static/', 5 * 60 * 1000),
     fetchFplCached(`entry/${entryId}/`),
     fetchFplCached(`entry/${entryId}/transfers/`, 60_000),
+    loadFixtures().catch(() => ({ fixtures: [] })),
   ]);
   const currentEvent = (bootstrap.events || []).find((event) => event.is_current);
   const currentDeadlineIsOpen = Boolean(currentEvent && new Date(currentEvent.deadline_time).getTime() > Date.now());
@@ -289,7 +342,7 @@ async function loadTransferPreview(entryId) {
     picksData = { ...picksData, picks: updatedPicks };
   }
 
-  const ideas = buildTransferIdeas(bootstrap, picksData, transferPayload, bankTenths, targetEventId);
+  const ideas = buildTransferIdeas(bootstrap, picksData, transferPayload, bankTenths, targetEventId, fixturePayload.fixtures);
   return {
     eventId: targetEventId,
     freeIdeas: ideas.slice(0, 3),
