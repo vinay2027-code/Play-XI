@@ -197,14 +197,14 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures }: { onBrowsePl
 
   const baseLineup = useMemo(() => picksAreForPreviousEvent ? (picks?.picks ?? []) : picksWithAutomaticSubs(picks), [picks, picksAreForPreviousEvent]);
   const lineup = useMemo(() => {
-    if (!picks || !bootstrap || !manualPlan || manualPlan.key !== currentPlanKey || !isValidPlan(manualPlan, picks.picks, bootstrap.players)) return baseLineup;
+    if (!picksAreForPreviousEvent || !picks || !bootstrap || !manualPlan || manualPlan.key !== currentPlanKey || !isValidPlan(manualPlan, picks.picks, bootstrap.players)) return baseLineup;
     const planOrder = [...manualPlan.starters, ...manualPlan.bench];
     return planOrder.map((id, index) => {
       const pick = baseLineup.find((candidate) => candidate.element === id);
       if (!pick) return null;
       return { ...pick, position: index + 1, is_captain: id === manualPlan.captain, is_vice_captain: id === manualPlan.viceCaptain, multiplier: id === manualPlan.captain ? 2 : 1 };
     }).filter((pick): pick is FplPick => pick !== null);
-  }, [picks, bootstrap, manualPlan, currentPlanKey, baseLineup]);
+  }, [picks, bootstrap, manualPlan, currentPlanKey, baseLineup, picksAreForPreviousEvent]);
   const automaticSubIns = useMemo(() => new Set((picks?.automatic_subs ?? []).map((substitution) => substitution.element_in)), [picks]);
   const automaticSubOuts = useMemo(() => new Set((picks?.automatic_subs ?? []).map((substitution) => substitution.element_out)), [picks]);
   const { startingPicks, benchPicks, positionRows, formation, startingExpectedPoints } = useMemo(() => {
