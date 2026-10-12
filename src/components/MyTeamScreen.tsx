@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { ArrowRightLeft, ArrowUpRight, CalendarDays, Link2, ShieldAlert, Sparkles, Users } from 'lucide-react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowRightLeft, CalendarDays, Link2, ShieldAlert, Users } from 'lucide-react';
 import type { FplBootstrap, FplEntry, FplPick, FplPicksResponse, FplRecommendationsResponse, FplTransferRecord } from '../types/football';
 import { fplAvailability, formatFplPrice, formatLocalDateTime } from '../utils/fpl';
 import { PlayerPortrait, TeamBadge } from './FplIdentity';
@@ -68,11 +68,14 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures }: { onBrowsePl
   const [lineupMessage, setLineupMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const loadRequestId = useRef(0);
 
   async function loadTeam(id: string, save = false) {
+    const requestId = ++loadRequestId.current;
     const cleanId = id.trim();
     if (!/^\d+$/.test(cleanId) || Number(cleanId) < 1) {
       setError('Enter the numeric Team ID from your Fantasy Premier League team URL.');
+      setRecommendationsLoading(false);
       return;
     }
     setLoading(true);
@@ -90,20 +93,29 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures }: { onBrowsePl
     setEditingLineup(false);
     setLineupMessage('');
     try {
-      const [entryResponse, bootstrapResponse, recommendationsResult] = await Promise.all([
+      void fetch(`/api/fpl/entry/${cleanId}/recommendations`)
+        .then(async (response) => ({ response, payload: await response.json() }))
+        .then(({ response, payload }) => {
+          if (requestId !== loadRequestId.current) return;
+          if (response.ok) setRecommendations(payload as FplRecommendationsResponse);
+          else setRecommendationsError(payload.error || 'Transfer ideas are temporarily unavailable.');
+        })
+        .catch(() => {
+          if (requestId === loadRequestId.current) setRecommendationsError('Transfer ideas are temporarily unavailable.');
+        })
+        .finally(() => {
+          if (requestId === loadRequestId.current) setRecommendationsLoading(false);
+        });
+
+      const [entryResponse, bootstrapResponse] = await Promise.all([
         fetch(`/api/fpl/entry/${cleanId}`),
         fetch('/api/fpl/bootstrap'),
-        fetch(`/api/fpl/entry/${cleanId}/recommendations`)
-          .then(async (response) => ({ response, payload: await response.json() }))
-          .catch(() => null),
       ]);
       const [entryPayload, bootstrapPayload] = await Promise.all([entryResponse.json(), bootstrapResponse.json()]);
       if (!entryResponse.ok) throw new Error(entryPayload.error || 'Could not load this public FPL team.');
       if (!bootstrapResponse.ok) throw new Error(bootstrapPayload.error || 'Could not load current FPL game data.');
       const entryData = entryPayload as FplEntry;
       const bootData = bootstrapPayload as FplBootstrap;
-      if (recommendationsResult?.response.ok) setRecommendations(recommendationsResult.payload as FplRecommendationsResponse);
-      else setRecommendationsError(recommendationsResult?.payload.error || 'Transfer ideas are temporarily unavailable.');
       const currentEvent = bootData.events.find((event) => event.id === bootData.currentEvent);
       const currentDeadlineIsOpen = Boolean(currentEvent && new Date(currentEvent.deadlineTime).getTime() > Date.now());
       const eventId = currentDeadlineIsOpen
@@ -163,8 +175,7 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures }: { onBrowsePl
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not load the FPL team. Check the Team ID and try again.');
     } finally {
-      setRecommendationsLoading(false);
-      setLoading(false);
+      if (requestId === loadRequestId.current) setLoading(false);
     }
   }
 
@@ -224,6 +235,9 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures }: { onBrowsePl
   }, [lineup, playerById]);
 
   const recommendationList = recommendations?.freeIdeas ?? [];
+  const recommendationEmptyMessage = recommendationsError || (!recommendations
+    ? 'Transfer ideas are temporarily unavailable. Try refreshing your team.'
+    : 'No affordable same-position move improves FPL’s next-gameweek projection right now.');
   const selectedEvent = bootstrap?.events.find((event) => event.id === planningEventId)
     ?? bootstrap?.events.find((event) => event.id === (bootstrap.currentEvent ?? bootstrap.nextEvent));
 
@@ -413,11 +427,14 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures }: { onBrowsePl
                   <div className="min-w-0"><div className="mb-2 flex items-center gap-2"><PlayerPortrait photo={move.incoming.photo} name={move.incoming.webName} size="sm" /><div className="min-w-0"><div className="text-[9px] font-bold uppercase tracking-widest text-[#00FF87]/75">IN · {move.incoming.position}</div><div className="mt-1 truncate text-sm font-extrabold text-white">{move.incoming.webName}</div></div></div><div className="flex items-center gap-1 truncate text-[10px] text-slate-400"><TeamBadge code={move.incoming.teamCode} name={move.incoming.teamName} size={16} />{move.incoming.teamName}</div><div className="mt-2 text-xs font-semibold text-slate-300">{formatFplPrice(move.incoming.cost)} <span className="font-normal text-slate-500">price</span></div></div>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="rounded-xl bg-white/[.035] p-3"><div className="text-[10px] text-slate-500">Next GW xP</div><div className="mt-1 font-mono font-bold text-slate-200">{move.outgoing.expectedPointsNext.toFixed(1)} → <span className="text-[#00FF87]">{move.incoming.expectedPointsNext.toFixed(1)}</span></div></div><div className="rounded-xl bg-white/[.035] p-3"><div className="text-[10px] text-slate-500">Bank after move</div><div className="mt-1 font-mono font-bold text-white">{formatFplPrice(bankAfter)}</div></div></div>
-                <ul className="mt-3 space-y-1.5 border-t border-white/6 pt-3 text-xs leading-5 text-slate-400">{move.reasons.slice(0, 2).map((reason) => <li key={reason} className="flex gap-2"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#00FF87]" />{reason}</li>)}</ul>
+                <div className="mt-4 border-t border-white/6 pt-3">
+                  <h3 className="text-[10px] font-bold uppercase tracking-[.14em] text-slate-400">Five reasons behind this idea</h3>
+                  <ol className="mt-2 space-y-2">{move.reasons.map((reason, reasonIndex) => <li key={`${reasonIndex}-${reason}`} className="flex gap-2.5 rounded-lg bg-white/[.025] px-2.5 py-2 text-[11px] leading-5 text-slate-300"><span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#00FF87]/10 font-mono text-[9px] font-bold text-[#00FF87]">{reasonIndex + 1}</span><span>{reason}</span></li>)}</ol>
+                </div>
               </article>;
-            })}</div> : <p className="rounded-2xl border border-white/8 bg-[#091726]/70 p-5 text-sm leading-6 text-slate-300">{recommendationsError || (recommendations ? 'No affordable same-position move improves FPL’s next-gameweek projection right now.' : 'Transfer ideas are temporarily unavailable. Try refreshing your team.')}</p>}
+            })}</div> : <p className="rounded-2xl border border-white/8 bg-[#091726]/70 p-5 text-sm leading-6 text-slate-300">{recommendationEmptyMessage}</p>}
             {recommendations && recommendations.lockedCount > 0 && <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-amber-300/15 bg-amber-300/[.04] p-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="font-semibold text-white">{recommendations.lockedCount} more transfer {recommendations.lockedCount === 1 ? 'idea' : 'ideas'} available</div><p className="mt-1 text-xs text-slate-400">One-time Gameweek unlock · ₹29 · no subscription</p></div><button type="button" disabled aria-describedby="unlock-payment-note" className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-slate-400">Payments coming later <span aria-hidden="true">↗</span></button><span id="unlock-payment-note" className="sr-only">Payments are not available yet.</span></div>}
-            <p className="mt-4 text-[11px] leading-5 text-slate-500">Suggestions compare FPL’s next-gameweek expected points and estimate sale values from transfer history and price-change rules. Hits and chip strategy are not included. Advice only; Play XI never submits transfers.</p>
+            <p className="mt-4 text-[11px] leading-5 text-slate-500">Reasons use FPL expected points, form, fixture difficulty, season totals, availability and card data. FPL projections and difficulty ratings are estimates; red cards show season history, not a prediction. Sale values are estimated from transfer history and price-change rules. Hits and chip strategy are not included. Advice only; Play XI never submits transfers.</p>
           </section>
 
         </>}
