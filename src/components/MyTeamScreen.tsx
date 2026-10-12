@@ -135,15 +135,22 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures }: { onBrowsePl
           picksData = picksPayload as FplPicksResponse;
           picksEventId = eventId;
         } else {
-          const fallbackEvent = bootData.events
-            .filter((event) => event.finished && event.id < eventId)
-            .sort((a, b) => b.id - a.id)[0]?.id;
-          if (!fallbackEvent || fallbackEvent === eventId) throw new Error(picksPayload.error || `Could not load the team picks for Gameweek ${eventId}.`);
-          const fallbackResponse = await fetch(`/api/fpl/entry/${cleanId}/event/${fallbackEvent}/picks`);
-          const fallbackPayload = await fallbackResponse.json();
-          if (!fallbackResponse.ok) throw new Error(fallbackPayload.error || `Could not load the team picks for Gameweek ${fallbackEvent}.`);
-          picksData = fallbackPayload as FplPicksResponse;
-          picksEventId = fallbackEvent;
+          const fallbackEvents = bootData.events
+            .filter((event) => event.id < eventId)
+            .sort((a, b) => b.id - a.id);
+          for (const fallbackEvent of fallbackEvents) {
+            const fallbackResponse = await fetch(`/api/fpl/entry/${cleanId}/event/${fallbackEvent.id}/picks`);
+            const fallbackPayload = await fallbackResponse.json();
+            if (fallbackResponse.ok) {
+              picksData = fallbackPayload as FplPicksResponse;
+              picksEventId = fallbackEvent.id;
+              break;
+            }
+            if (fallbackResponse.status !== 404) {
+              throw new Error(fallbackPayload.error || `Could not load the team picks for ${fallbackEvent.name}.`);
+            }
+          }
+          if (!picksData) throw new Error(picksPayload.error || `Could not load any published team picks before Gameweek ${eventId}.`);
         }
       }
       let bankTenths = picksData?.entry_history.bank ?? null;
@@ -326,7 +333,7 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures }: { onBrowsePl
         {picks && <>
           <section aria-labelledby="starting-xi-title" className="overflow-hidden rounded-3xl border border-white/10 bg-[#0d1c2d] shadow-xl">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/8 px-4 py-4 sm:px-6">
-              <div><div className="mb-1 text-[10px] font-bold uppercase tracking-[.18em] text-[#00FF87]">{picksAreForPreviousEvent ? `Planning · ${selectedEvent?.name ?? 'Next Gameweek'}` : selectedEvent?.name ?? 'Next Gameweek'}</div><h2 id="starting-xi-title" className="text-xl font-black tracking-tight text-white sm:text-2xl">{picksAreForPreviousEvent ? manualPlan?.key === currentPlanKey ? 'Your planned XI' : 'Plan your starting XI' : 'Your starting XI'}</h2><p className="mt-1 text-xs text-slate-400">{picksAreForPreviousEvent ? manualPlan?.key === currentPlanKey ? 'Your lineup, captain and bench order saved for this device.' : `FPL has not published ${selectedEvent?.name ?? 'the upcoming Gameweek'} picks yet. Set your own XI and bench below; the plan stays on this device.` : 'Your official FPL lineup, including any automatic substitutions.'}</p></div>
+              <div><div className="mb-1 text-[10px] font-bold uppercase tracking-[.18em] text-[#00FF87]">{picksAreForPreviousEvent ? `Planning · ${selectedEvent?.name ?? 'Next Gameweek'}` : selectedEvent?.name ?? 'Next Gameweek'}</div><h2 id="starting-xi-title" className="text-xl font-black tracking-tight text-white sm:text-2xl">{picksAreForPreviousEvent ? manualPlan?.key === currentPlanKey ? 'Your planned XI' : 'Plan your starting XI' : 'Your starting XI'}</h2><p className="mt-1 text-xs text-slate-400">{picksAreForPreviousEvent ? manualPlan?.key === currentPlanKey ? `Your ${selectedEvent?.name ?? 'Gameweek'} plan is saved on this device. Latest published official picks: ${picksEventLabel}.` : `FPL has not published ${selectedEvent?.name ?? 'the upcoming Gameweek'} picks yet. Latest published official picks: ${picksEventLabel}. Set your own XI below; the plan stays on this device.` : 'Your official FPL lineup, including any automatic substitutions.'}</p></div>
               {picksAreForPreviousEvent && <button type="button" onClick={beginLineupEdit} className="rounded-lg border border-[#00FF87]/30 bg-[#00FF87]/10 px-3 py-2 text-xs font-bold text-[#b4ffd0] hover:bg-[#00FF87]/15">{manualPlan?.key === currentPlanKey ? 'Edit lineup' : 'Set lineup'}</button>}
               <div className="flex items-center gap-2"><span className="rounded-lg border border-white/10 bg-[#091726] px-3 py-2 text-xs font-bold text-white">{formation}</span><span className="rounded-lg border border-[#00FF87]/15 bg-[#00FF87]/[.07] px-3 py-2 text-xs font-bold text-[#adffd0]">{startingExpectedPoints.toFixed(1)} xP</span></div>
             </div>
