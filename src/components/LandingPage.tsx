@@ -175,7 +175,10 @@ export function LandingPage({ onOpenPlanner, onSignIn, authUserEmail }: LandingP
         </section>
       </main>
 
-      <footer className="border-t border-white/8 px-4 py-6 text-center text-xs leading-5 text-slate-500 sm:px-8">Play XI is an independent FPL planning tool. Recommendations are informational, projections are estimates, and every transfer stays under your control.</footer>
+      <footer className="border-t border-white/8 px-4 py-6 text-center text-xs leading-5 text-slate-500 sm:px-8">
+        <p>Play XI is an independent FPL planning tool. Recommendations are informational, projections are estimates, and every transfer stays under your control.</p>
+        <a href="/privacy.html" className="mt-2 inline-block text-slate-400 underline decoration-white/20 underline-offset-4 transition hover:text-white">Privacy policy</a>
+      </footer>
     </div>
   );
 }
