@@ -1,12 +1,14 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRightLeft, CalendarDays, Link2, ShieldAlert, Users } from 'lucide-react';
-import type { FplBootstrap, FplEntry, FplPick, FplPicksResponse, FplRecommendationsResponse, FplTransferRecord } from '../types/football';
+import type { FplBootstrap, FplEntry, FplFixture, FplFixturesResponse, FplPick, FplPicksResponse, FplRecommendationsResponse, FplTransferRecord } from '../types/football';
 import { fplAvailability, formatFplPrice, formatLocalDateTime } from '../utils/fpl';
+import { suggestLineup, type LineupPlan } from '../utils/lineupAdvisor';
+import { saveFirstRecommendationSnapshot, type RecommendationSnapshot } from '../utils/recommendationHistory';
 import { PlayerPortrait, TeamBadge } from './FplIdentity';
+import { GameweekBrief } from './GameweekBrief';
 
 const STORAGE_KEY = 'playxi-fpl-entry-id';
-type LineupPlan = { key: string; starters: number[]; bench: number[]; captain: number; viceCaptain: number };
-
+const EMPTY_FIXTURES: FplFixture[] = [];
 function lineupPlanKey(entryId: string, eventId: number) { return `playxi-lineup:${entryId}:${eventId}`; }
 
 function isValidPlan(plan: LineupPlan, picks: FplPick[], players: FplBootstrap['players']) {
@@ -54,6 +56,8 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded 
   const [bootstrap, setBootstrap] = useState<FplBootstrap | null>(null);
   const [picks, setPicks] = useState<FplPicksResponse | null>(null);
   const [recommendations, setRecommendations] = useState<FplRecommendationsResponse | null>(null);
+  const [fixtures, setFixtures] = useState<FplFixturesResponse | null>(null);
+  const [recommendationSnapshot, setRecommendationSnapshot] = useState<RecommendationSnapshot | null>(null);
   const [recommendationsError, setRecommendationsError] = useState('');
   const [recommendationsLoading, setRecommendationsLoading] = useState(false);
   const [planningEventId, setPlanningEventId] = useState<number | null>(null);
@@ -86,6 +90,8 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded 
     setBootstrap(null);
     setPicks(null);
     setRecommendations(null);
+    setFixtures(null);
+    setRecommendationSnapshot(null);
     setRecommendationsError('');
     setRecommendationsLoading(true);
     setPlanningEventId(null);
@@ -99,7 +105,11 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded 
         .then(async (response) => ({ response, payload: await response.json() }))
         .then(({ response, payload }) => {
           if (requestId !== loadRequestId.current) return;
-          if (response.ok) setRecommendations(payload as FplRecommendationsResponse);
+          if (response.ok) {
+            const data = payload as FplRecommendationsResponse;
+            setRecommendations(data);
+            setRecommendationSnapshot(saveFirstRecommendationSnapshot(cleanId, data));
+          }
           else setRecommendationsError(payload.error || 'Transfer ideas are temporarily unavailable.');
         })
         .catch(() => {
@@ -108,6 +118,11 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded 
         .finally(() => {
           if (requestId === loadRequestId.current) setRecommendationsLoading(false);
         });
+
+      void fetch('/api/fpl/fixtures')
+        .then(async (response) => response.ok ? await response.json() as FplFixturesResponse : null)
+        .then((data) => { if (requestId === loadRequestId.current) setFixtures(data); })
+        .catch(() => { if (requestId === loadRequestId.current) setFixtures(null); });
 
       const [entryResponse, bootstrapResponse] = await Promise.all([
         fetch(`/api/fpl/entry/${cleanId}`),
@@ -155,6 +170,10 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded 
           if (!picksData) throw new Error(picksPayload.error || `Could not load any published team picks before Gameweek ${eventId}.`);
         }
       }
+      if (requestId !== loadRequestId.current) return;
+      if (picksEventId !== null && eventId !== undefined && picksEventId < eventId && !transferData) {
+        throw new Error('We could not verify recent transfers, so we cannot safely build this Gameweek plan. Refresh and try again shortly.');
+      }
       let bankTenths = picksData?.entry_history.bank ?? null;
       if (picksData && transferData && picksEventId !== null && eventId !== undefined && eventId > picksEventId) {
         const targetGameweek = eventId;
@@ -165,10 +184,13 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded 
           if (bankTenths !== null) bankTenths += transfer.element_out_cost - transfer.element_in_cost;
         }
         if (picksData.picks.length === 15) {
-          const currentRoster = picksData.picks.map((pick) => ({ ...pick, is_captain: false, is_vice_captain: false, multiplier: 1 }));
+          const currentRoster = picksData.picks.map((pick) => ({ ...pick }));
           for (const transfer of interveningTransfers) {
             const outgoingIndex = currentRoster.findIndex((pick) => pick.element === transfer.element_out);
-            if (outgoingIndex >= 0) currentRoster[outgoingIndex] = { ...currentRoster[outgoingIndex], element: transfer.element_in };
+            if (outgoingIndex >= 0) currentRoster[outgoingIndex] = {
+              ...currentRoster[outgoingIndex], element: transfer.element_in,
+              is_captain: false, is_vice_captain: false, multiplier: currentRoster[outgoingIndex].position <= 11 ? 1 : 0,
+            };
           }
           picksData = { ...picksData, automatic_subs: [], picks: currentRoster };
         }
@@ -183,8 +205,10 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded 
       onEntryLoaded(entryData, cleanId);
       if (save) window.localStorage.setItem(STORAGE_KEY, cleanId);
     } catch (cause) {
-      if (requestId === loadRequestId.current) onEntryLoaded(null, '');
-      setError(cause instanceof Error ? cause.message : 'Could not load the FPL team. Check the Team ID and try again.');
+      if (requestId === loadRequestId.current) {
+        onEntryLoaded(null, '');
+        setError(cause instanceof Error ? cause.message : 'Could not load the FPL team. Check the Team ID and try again.');
+      }
     } finally {
       if (requestId === loadRequestId.current) setLoading(false);
     }
@@ -251,6 +275,8 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded 
     : 'No affordable same-position move improves FPL’s next-gameweek projection right now.');
   const selectedEvent = bootstrap?.events.find((event) => event.id === planningEventId)
     ?? bootstrap?.events.find((event) => event.id === (bootstrap.currentEvent ?? bootstrap.nextEvent));
+  const suggestedPlan = useMemo(() => picks && bootstrap && currentPlanKey
+    ? suggestLineup(currentPlanKey, picks.picks, bootstrap.players) : null, [picks, bootstrap, currentPlanKey]);
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -259,7 +285,9 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded 
 
   function beginLineupEdit() {
     setDraftStarters(lineup.filter((pick) => pick.position <= 11).sort((a, b) => a.position - b.position).map((pick) => pick.element));
-    setDraftBench(lineup.filter((pick) => pick.position > 11).sort((a, b) => a.position - b.position).map((pick) => pick.element));
+    setDraftBench(lineup.filter((pick) => pick.position > 11).sort((a, b) =>
+      Number(playerById.get(b.element)?.position === 'GKP') - Number(playerById.get(a.element)?.position === 'GKP') || a.position - b.position,
+    ).map((pick) => pick.element));
     const starters = lineup.filter((pick) => pick.position <= 11).sort((a, b) => a.position - b.position);
     setDraftCaptain(starters.find((pick) => pick.is_captain)?.element ?? starters[0]?.element ?? null);
     setDraftViceCaptain(starters.find((pick) => pick.is_vice_captain)?.element ?? starters[1]?.element ?? null);
@@ -294,6 +322,20 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded 
     setManualPlan(plan);
     setEditingLineup(false);
     setLineupMessage(`Saved your ${selectedEvent?.name ?? 'Gameweek'} plan on this device.`);
+  }
+
+  function applySuggestedLineup() {
+    if (!suggestedPlan || !picks || !bootstrap || !picksAreForPreviousEvent
+      || !selectedEvent || new Date(selectedEvent.deadlineTime).getTime() <= Date.now()
+      || !isValidPlan(suggestedPlan, picks.picks, bootstrap.players)) return;
+    try {
+      window.localStorage.setItem(currentPlanKey, JSON.stringify(suggestedPlan));
+      setManualPlan(suggestedPlan);
+      setEditingLineup(false);
+      setLineupMessage(`Suggested XI saved for ${selectedEvent?.name ?? 'this Gameweek'} on this device.`);
+    } catch {
+      setLineupMessage('This browser could not save your lineup. Check storage settings and try again.');
+    }
   }
 
   function moveBench(element: number, direction: -1 | 1) {
@@ -335,6 +377,17 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded 
         </section>
 
         {picks && <>
+          {planningEventId !== null && <GameweekBrief
+            bootstrap={bootstrap}
+            playerById={playerById}
+            eventId={planningEventId}
+            fixtures={fixtures?.fixtures ?? EMPTY_FIXTURES}
+            lineup={lineup}
+            suggestion={suggestedPlan}
+            recommendations={recommendations}
+            canApply={picksAreForPreviousEvent}
+            onApply={applySuggestedLineup}
+          />}
           <section aria-labelledby="starting-xi-title" className="overflow-hidden rounded-3xl border border-white/10 bg-[#0d1c2d] shadow-xl">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/8 px-4 py-4 sm:px-6">
               <div><div className="mb-1 text-[10px] font-bold uppercase tracking-[.18em] text-[#00FF87]">{picksAreForPreviousEvent ? `Planning · ${selectedEvent?.name ?? 'Next Gameweek'}` : selectedEvent?.name ?? 'Next Gameweek'}</div><h2 id="starting-xi-title" className="text-xl font-black tracking-tight text-white sm:text-2xl">{picksAreForPreviousEvent ? manualPlan?.key === currentPlanKey ? 'Your planned XI' : 'Plan your starting XI' : 'Your starting XI'}</h2><p className="mt-1 text-xs text-slate-400">{picksAreForPreviousEvent ? manualPlan?.key === currentPlanKey ? `Your ${selectedEvent?.name ?? 'Gameweek'} plan is saved on this device. Latest published official picks: ${picksEventLabel}.` : `FPL has not published ${selectedEvent?.name ?? 'the upcoming Gameweek'} picks yet. Latest published official picks: ${picksEventLabel}. Set your own XI below; the plan stays on this device.` : 'Your official FPL lineup, including any automatic substitutions.'}</p></div>
@@ -418,7 +471,7 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded 
                   const issue = fplAvailability(player);
                   return <div key={pick.element} className="flex min-w-0 items-center gap-2 rounded-xl border border-white/8 bg-[#0d1c2d] p-2.5">
                     <PlayerPortrait photo={player.photo} name={player.webName} size="sm" />
-                    <div className="min-w-0"><div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{automaticSubOuts.has(pick.element) ? 'Auto-subbed out' : player.position === 'GKP' ? 'Reserve GK' : `Sub ${pick.position - 12}`}</div><div className="truncate text-xs font-bold text-white">{player.webName}</div><div className="flex items-center gap-1 text-[10px] text-slate-400"><TeamBadge code={player.teamCode} name={player.teamName} size={13} />{player.position} · {player.expectedPointsNext.toFixed(1)} xP</div></div>
+                    <div className="min-w-0"><div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{automaticSubOuts.has(pick.element) ? 'Auto-subbed out' : player.position === 'GKP' ? 'Reserve GK' : `Sub ${benchPicks.filter((candidate) => playerById.get(candidate.element)?.position !== 'GKP').findIndex((candidate) => candidate.element === pick.element) + 1}`}</div><div className="truncate text-xs font-bold text-white">{player.webName}</div><div className="flex items-center gap-1 text-[10px] text-slate-400"><TeamBadge code={player.teamCode} name={player.teamName} size={13} />{player.position} · {player.expectedPointsNext.toFixed(1)} xP</div></div>
                     {issue && <span title={issue} className="ml-auto text-amber-300"><ShieldAlert className="h-3.5 w-3.5" /></span>}
                   </div>;
                 })}
@@ -445,6 +498,7 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded 
               </article>;
             })}</div> : <p className="rounded-2xl border border-white/8 bg-[#091726]/70 p-5 text-sm leading-6 text-slate-300">{recommendationEmptyMessage}</p>}
             {recommendations && recommendations.lockedCount > 0 && <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-amber-300/15 bg-amber-300/[.04] p-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="font-semibold text-white">{recommendations.lockedCount} more transfer {recommendations.lockedCount === 1 ? 'idea' : 'ideas'} available</div><p className="mt-1 text-xs text-slate-400">One-time Gameweek unlock · ₹29 · no subscription</p></div><button type="button" disabled aria-describedby="unlock-payment-note" className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-slate-400">Payments coming later <span aria-hidden="true">↗</span></button><span id="unlock-payment-note" className="sr-only">Payments are not available yet.</span></div>}
+            {recommendationSnapshot && <p className="mt-3 text-[11px] text-slate-500">First {recommendationSnapshot.ideas.length} free {recommendationSnapshot.ideas.length === 1 ? 'idea' : 'ideas'} for Gameweek {recommendationSnapshot.eventId} saved on this device at {formatLocalDateTime(recommendationSnapshot.capturedAt, 'first visit')}. This keeps a dated record for a future advice scorecard; it is not a verified outcome yet.</p>}
             <p className="mt-4 text-[11px] leading-5 text-slate-500">Reasons use FPL expected points, form, fixture difficulty, season totals, availability and card data. FPL projections and difficulty ratings are estimates; red cards show season history, not a prediction. Sale values are estimated from transfer history and price-change rules. Hits and chip strategy are not included. Advice only; Play XI never submits transfers.</p>
           </section>
 
