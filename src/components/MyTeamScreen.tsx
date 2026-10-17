@@ -4,10 +4,13 @@ import type { FplBootstrap, FplEntry, FplFixture, FplFixturesResponse, FplPick, 
 import { fplAvailability, formatFplPrice, formatLocalDateTime } from '../utils/fpl';
 import { suggestLineup, type LineupPlan } from '../utils/lineupAdvisor';
 import { saveFirstRecommendationSnapshot, type RecommendationSnapshot } from '../utils/recommendationHistory';
+import { loadGameweekPlan, loadManagerAccount, saveGameweekPlan, saveManagerAccount } from '../utils/accountSync';
 import { PlayerPortrait, TeamBadge } from './FplIdentity';
 import { GameweekBrief } from './GameweekBrief';
 
 const STORAGE_KEY = 'playxi-fpl-entry-id';
+const ENTRY_OWNER_KEY = 'playxi-fpl-entry-owner';
+const LINEUP_OWNER_KEY = 'playxi-lineup-owner';
 const EMPTY_FIXTURES: FplFixture[] = [];
 function lineupPlanKey(entryId: string, eventId: number) { return `playxi-lineup:${entryId}:${eventId}`; }
 
@@ -50,7 +53,7 @@ function picksWithAutomaticSubs(picks: FplPicksResponse | null) {
   return lineup;
 }
 
-export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded }: { onBrowsePlayers: () => void; onBrowseFixtures: () => void; onEntryLoaded: (entry: FplEntry | null, entryId: string) => void }) {
+export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntryLoaded }: { userId: string | null; onBrowsePlayers: () => void; onBrowseFixtures: () => void; onEntryLoaded: (entry: FplEntry | null, entryId: string) => void }) {
   const [entryId, setEntryId] = useState('');
   const [entry, setEntry] = useState<FplEntry | null>(null);
   const [bootstrap, setBootstrap] = useState<FplBootstrap | null>(null);
@@ -72,7 +75,10 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded 
   const [lineupMessage, setLineupMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [accountSyncForUser, setAccountSyncForUser] = useState<string | null>(null);
+  const [accountSyncMessage, setAccountSyncMessage] = useState('');
   const loadRequestId = useRef(0);
+  const accountSyncRequestId = useRef(0);
 
   async function loadTeam(id: string, save = false) {
     const requestId = ++loadRequestId.current;
@@ -215,14 +221,109 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded 
   }
 
   useEffect(() => {
+    const requestId = ++accountSyncRequestId.current;
+    if (!userId) {
+      setAccountSyncForUser(null);
+      setAccountSyncMessage('');
+      if (window.localStorage.getItem(ENTRY_OWNER_KEY) || window.localStorage.getItem(LINEUP_OWNER_KEY)) {
+        loadRequestId.current += 1;
+        setLoading(false);
+        setEntry(null);
+        setBootstrap(null);
+        setPicks(null);
+        setRecommendations(null);
+        setFixtures(null);
+        setRecommendationSnapshot(null);
+        setManualPlan(null);
+        setEntryId('');
+        onEntryLoaded(null, '');
+      }
+      return;
+    }
+    setAccountSyncForUser(null);
+    setAccountSyncMessage('Syncing your saved team…');
+    // Ignore any local-team request started under the previous account.
+    loadRequestId.current += 1;
+    setLoading(false);
+    setEntry(null);
+    setBootstrap(null);
+    setPicks(null);
+    setRecommendations(null);
+    setFixtures(null);
+    setRecommendationSnapshot(null);
+    setManualPlan(null);
+    setEntryId('');
+    onEntryLoaded(null, '');
+    let active = true;
+    let syncCompleted = false;
+    void (async () => {
+      try {
+        const account = await loadManagerAccount(userId);
+        if (!active || requestId !== accountSyncRequestId.current) return;
+        const localEntryId = window.localStorage.getItem(STORAGE_KEY)?.trim() ?? '';
+        const accountEntryId = account?.fpl_entry_id?.trim() ?? '';
+        if (accountEntryId) {
+          window.localStorage.setItem(STORAGE_KEY, accountEntryId);
+          window.localStorage.setItem(ENTRY_OWNER_KEY, userId);
+          setEntryId(accountEntryId);
+          void loadTeam(accountEntryId);
+          setAccountSyncMessage('Your team is saved to your Play XI account.');
+        } else if (localEntryId && /^\d+$/.test(localEntryId)
+          && (!window.localStorage.getItem(ENTRY_OWNER_KEY) || window.localStorage.getItem(ENTRY_OWNER_KEY) === userId)) {
+          await saveManagerAccount(userId, localEntryId);
+          if (active) {
+            window.localStorage.setItem(ENTRY_OWNER_KEY, userId);
+            setEntryId(localEntryId);
+            void loadTeam(localEntryId);
+            setAccountSyncMessage('Your saved FPL Team ID is now linked to your account.');
+          }
+        } else if (localEntryId && window.localStorage.getItem(ENTRY_OWNER_KEY) !== userId) {
+          window.localStorage.removeItem(STORAGE_KEY);
+          setEntryId('');
+          setEntry(null);
+          setPicks(null);
+          setRecommendations(null);
+          setFixtures(null);
+          setRecommendationSnapshot(null);
+          onEntryLoaded(null, '');
+          setAccountSyncMessage('This account has no saved team yet. Import your FPL Team ID to link it.');
+        } else {
+          setAccountSyncMessage('Sign in complete. Import a Team ID to save it to your account.');
+        }
+        syncCompleted = true;
+      } catch {
+        if (active) setAccountSyncMessage('Cloud sync is unavailable. Your plan remains saved in this browser.');
+      } finally {
+        if (active && requestId === accountSyncRequestId.current && syncCompleted) setAccountSyncForUser(userId);
+      }
+    })();
+    return () => { active = false; };
+  // Sync once per signed-in account. Import/save actions are handled below.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // `onEntryLoaded` is a parent callback recreated during renders; this sync runs only when the account changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  useEffect(() => {
     const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (saved) {
+    const savedOwner = window.localStorage.getItem(ENTRY_OWNER_KEY);
+    if (saved && (!savedOwner || (userId && savedOwner === userId))) {
       setEntryId(saved);
       void loadTeam(saved);
     }
   // The saved ID is read once when this screen opens.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!userId || accountSyncForUser !== userId || !entry || !/^\d+$/.test(entryId) || String(entry.id) !== entryId) return;
+    void saveManagerAccount(userId, entryId).then(() => {
+      window.localStorage.setItem(ENTRY_OWNER_KEY, userId);
+      setAccountSyncMessage('Your FPL Team ID is saved to your Play XI account.');
+    }).catch(() => {
+      setAccountSyncMessage('Could not sync your Team ID. Your local planner still works.');
+    });
+  }, [userId, accountSyncForUser, entry, entryId]);
 
   const playerById = useMemo(() => new Map((bootstrap?.players ?? []).map((player) => [player.id, player])), [bootstrap]);
   const picksAreForPreviousEvent = asOfEventId !== null && planningEventId !== null && asOfEventId !== planningEventId;
@@ -231,15 +332,45 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded 
 
   useEffect(() => {
     if (!picks || !bootstrap || !currentPlanKey || !picksAreForPreviousEvent) return;
+    const lineupOwner = window.localStorage.getItem(LINEUP_OWNER_KEY);
+    const mayUseLocalPlan = !userId || !lineupOwner || lineupOwner === userId;
     try {
       const saved = window.localStorage.getItem(currentPlanKey);
       const parsed = saved ? JSON.parse(saved) as LineupPlan : null;
-      if (parsed && parsed.key === currentPlanKey && isValidPlan(parsed, picks.picks, bootstrap.players)) setManualPlan(parsed);
+      if (mayUseLocalPlan && parsed && parsed.key === currentPlanKey && isValidPlan(parsed, picks.picks, bootstrap.players)) setManualPlan(parsed);
       else setManualPlan(null);
     } catch {
       setManualPlan(null);
     }
-  }, [picks, bootstrap, currentPlanKey, picksAreForPreviousEvent]);
+    if (!userId || accountSyncForUser !== userId) return;
+    let active = true;
+    const localPlan = (() => {
+      if (!mayUseLocalPlan) return null;
+      try {
+        const saved = window.localStorage.getItem(currentPlanKey);
+        const parsed = saved ? JSON.parse(saved) as LineupPlan : null;
+        return parsed?.key === currentPlanKey && isValidPlan(parsed, picks.picks, bootstrap.players) ? parsed : null;
+      } catch { return null; }
+    })();
+    void loadGameweekPlan(userId, entryId, planningEventId ?? 0).then(async (cloudPlan) => {
+      if (!active) return;
+      if (cloudPlan?.key === currentPlanKey && isValidPlan(cloudPlan, picks.picks, bootstrap.players)) {
+        window.localStorage.setItem(currentPlanKey, JSON.stringify(cloudPlan));
+        window.localStorage.setItem(LINEUP_OWNER_KEY, userId);
+        setManualPlan(cloudPlan);
+        setAccountSyncMessage('Your Gameweek lineup is synced to your account.');
+      } else if (localPlan) {
+        await saveGameweekPlan(userId, entryId, planningEventId ?? 0, localPlan);
+        if (active) {
+          window.localStorage.setItem(LINEUP_OWNER_KEY, userId);
+          setAccountSyncMessage('Your saved Gameweek lineup is now synced to your account.');
+        }
+      }
+    }).catch(() => {
+      if (active) setAccountSyncMessage('Could not sync this Gameweek plan. Your browser copy is still saved.');
+    });
+    return () => { active = false; };
+  }, [picks, bootstrap, currentPlanKey, picksAreForPreviousEvent, userId, accountSyncForUser, entryId, planningEventId]);
 
   const baseLineup = useMemo(() => picksAreForPreviousEvent ? (picks?.picks ?? []) : picksWithAutomaticSubs(picks), [picks, picksAreForPreviousEvent]);
   const lineup = useMemo(() => {
@@ -319,9 +450,17 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded 
       return;
     }
     window.localStorage.setItem(currentPlanKey, JSON.stringify(plan));
+    if (userId) window.localStorage.setItem(LINEUP_OWNER_KEY, userId);
     setManualPlan(plan);
     setEditingLineup(false);
     setLineupMessage(`Saved your ${selectedEvent?.name ?? 'Gameweek'} plan on this device.`);
+    if (userId && planningEventId !== null && accountSyncForUser === userId) {
+      void saveGameweekPlan(userId, entryId, planningEventId, plan).then(() => {
+        setAccountSyncMessage(`Your ${selectedEvent?.name ?? 'Gameweek'} lineup is synced to your account.`);
+      }).catch(() => {
+        setAccountSyncMessage('Cloud sync failed. Your plan is still saved in this browser.');
+      });
+    }
   }
 
   function applySuggestedLineup() {
@@ -330,9 +469,17 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded 
       || !isValidPlan(suggestedPlan, picks.picks, bootstrap.players)) return;
     try {
       window.localStorage.setItem(currentPlanKey, JSON.stringify(suggestedPlan));
+      if (userId) window.localStorage.setItem(LINEUP_OWNER_KEY, userId);
       setManualPlan(suggestedPlan);
       setEditingLineup(false);
       setLineupMessage(`Suggested XI saved for ${selectedEvent?.name ?? 'this Gameweek'} on this device.`);
+      if (userId && planningEventId !== null && accountSyncForUser === userId) {
+        void saveGameweekPlan(userId, entryId, planningEventId, suggestedPlan).then(() => {
+          setAccountSyncMessage(`Your ${selectedEvent?.name ?? 'Gameweek'} lineup is synced to your account.`);
+        }).catch(() => {
+          setAccountSyncMessage('Cloud sync failed. Your plan is still saved in this browser.');
+        });
+      }
     } catch {
       setLineupMessage('This browser could not save your lineup. Check storage settings and try again.');
     }
@@ -366,6 +513,7 @@ export function MyTeamScreen({ onBrowsePlayers, onBrowseFixtures, onEntryLoaded 
         </form>
         <p className="mt-2 text-xs text-slate-500">Find it in your FPL URL: fantasy.premierleague.com/entry/<strong>TEAM_ID</strong>/event/… Play XI reads public FPL data only and never asks for your FPL password.</p>
         {error && <p role="alert" className="mt-3 rounded-lg border border-rose-900 bg-rose-950/30 px-3 py-2 text-sm text-rose-200">{error}</p>}
+        {userId && accountSyncMessage && <p aria-live="polite" className="mt-3 text-xs text-[#b4ffd0]">{accountSyncMessage}</p>}
       </section>
 
       {entry && bootstrap && <>

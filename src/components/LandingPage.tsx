@@ -17,6 +17,8 @@ import { BrandLockup } from './BrandMark';
 
 interface LandingPageProps {
   onOpenPlanner: () => void;
+  onSignIn: () => void;
+  authUserEmail: string | null;
 }
 
 type DemoTab = 'team' | 'ideas' | 'fixtures';
@@ -29,7 +31,7 @@ const transferReasons = [
   ['05', 'Availability & cards', 'Check injury news, playing chance and yellow or red card history.'],
 ];
 
-export function LandingPage({ onOpenPlanner }: LandingPageProps) {
+export function LandingPage({ onOpenPlanner, onSignIn, authUserEmail }: LandingPageProps) {
   const [activeDemo, setActiveDemo] = useState<DemoTab>('team');
 
   return (
@@ -42,9 +44,14 @@ export function LandingPage({ onOpenPlanner }: LandingPageProps) {
             <a href="#why-playxi" className="transition hover:text-white">Why Play XI</a>
             <a href="#pricing" className="transition hover:text-white">Pricing</a>
           </nav>
-          <button onClick={onOpenPlanner} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#c7f36b] px-4 text-sm font-extrabold text-[#102018] transition hover:bg-[#d7ff84] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c7f36b]">
-            Open planner <ArrowRight className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={onSignIn} className="inline-flex min-h-10 max-w-36 items-center gap-2 truncate rounded-xl border border-white/15 px-3 text-xs font-bold text-slate-200 transition hover:border-[#c7f36b]/40 hover:text-white" title={authUserEmail ?? 'Sign in to save your team across devices'}>
+              {authUserEmail ? 'Account' : 'Sign in'}
+            </button>
+            <button onClick={onOpenPlanner} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#c7f36b] px-4 text-sm font-extrabold text-[#102018] transition hover:bg-[#d7ff84] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c7f36b]">
+              Open planner <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </header>
 
