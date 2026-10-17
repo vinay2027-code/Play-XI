@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Search, ChevronDown, Home, ArrowRight, Users } from 'lucide-react';
+import { Search, ChevronDown, Home, ArrowRight, Users, LogIn, LogOut } from 'lucide-react';
+import type { User } from '@supabase/supabase-js';
 import type { FplEntry } from '../types/football';
 import type { FplBootstrap, FplEvent } from '../types/football';
 import { formatLocalDateTime } from '../utils/fpl';
@@ -8,6 +9,8 @@ import { BrandMark } from './BrandMark';
 interface HeaderProps {
   entry: FplEntry | null;
   entryId: string;
+  authUser: User | null;
+  onOpenAccount: () => void;
   activeScreen: string;
   onOpenSearch: () => void;
   onReturnHome: () => void;
@@ -17,6 +20,8 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   entry,
   entryId,
+  authUser,
+  onOpenAccount,
   activeScreen,
   onOpenSearch,
   onReturnHome,
@@ -96,6 +101,11 @@ export const Header: React.FC<HeaderProps> = ({
           title="Search"
         >
           <Search className="w-4 h-4" />
+        </button>
+
+        <button type="button" onClick={onOpenAccount} title={authUser?.email ?? 'Sign in to sync your team'} aria-label={authUser ? `Account: ${authUser.email ?? 'signed in'}` : 'Sign in to save your team across devices'} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-[#c7f36b]/25 bg-[#c7f36b]/[.07] px-2.5 text-[11px] font-bold text-[#d9ffa1] transition hover:bg-[#c7f36b]/15">
+          {authUser ? <LogOut className="h-3.5 w-3.5" /> : <LogIn className="h-3.5 w-3.5" />}
+          <span className="hidden sm:inline">{authUser ? 'Account' : 'Sign in'}</span>
         </button>
 
         {/* User Pill */}
