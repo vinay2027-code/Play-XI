@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowRight, CheckCircle2, LoaderCircle, Mail, ShieldCheck, X } from 'lucide-react';
 import type { User } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
@@ -6,15 +6,20 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 type Props = {
   open: boolean;
   user: User | null;
+  callbackError: string;
   onClose: () => void;
   onSignedOut: () => void;
 };
 
-export function AuthDialog({ open, user, onClose, onSignedOut }: Props) {
+export function AuthDialog({ open, user, callbackError, onClose, onSignedOut }: Props) {
   const [email, setEmail] = useState('');
   const [sentTo, setSentTo] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (callbackError) setError(callbackError);
+  }, [callbackError]);
 
   if (!open) return null;
 
@@ -36,6 +41,30 @@ export function AuthDialog({ open, user, onClose, onSignedOut }: Props) {
       else setSentTo(cleanEmail);
     } catch {
       setError('Could not send the sign-in link. Check your connection and try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function signInWithGoogle() {
+    if (!supabase) {
+      setError('Sign-in is not configured yet. Your local team planner is still available.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const { error: signInError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin },
+      });
+      if (signInError) {
+        setError(/provider.*not enabled|unsupported provider/i.test(signInError.message)
+          ? 'Google sign-in is not enabled in Supabase yet. Finish the Google provider setup, then try again.'
+          : signInError.message);
+      }
+    } catch {
+      setError('Could not start Google sign-in. Check your connection and try again.');
     } finally {
       setBusy(false);
     }
@@ -75,7 +104,13 @@ export function AuthDialog({ open, user, onClose, onSignedOut }: Props) {
         <div className="flex items-center gap-2 text-sm font-bold text-white"><CheckCircle2 className="h-4 w-4 text-[#c7f36b]" /> Check your email</div>
         <p className="mt-1 break-all text-sm text-slate-300">We sent a secure sign-in link to {sentTo}. Open it on this device to finish signing in.</p>
         <button type="button" onClick={() => setSentTo('')} className="mt-3 text-xs font-bold text-[#d9ffa1] hover:underline">Use a different email</button>
-      </div> : <form onSubmit={(event) => void sendLink(event)} className="mt-6">
+      </div> : <>
+        <button type="button" disabled={busy} onClick={() => void signInWithGoogle()} className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border border-white/15 bg-white px-4 text-sm font-bold text-slate-900 transition hover:bg-slate-100 disabled:cursor-wait disabled:opacity-60">
+          {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <GoogleMark />}
+          Continue with Google
+        </button>
+        <div className="my-5 flex items-center gap-3 text-[10px] font-bold uppercase tracking-[.16em] text-slate-500"><span className="h-px flex-1 bg-white/10" />or continue with email<span className="h-px flex-1 bg-white/10" /></div>
+        <form onSubmit={(event) => void sendLink(event)}>
         <label htmlFor="playxi-auth-email" className="mb-1.5 block text-xs font-bold text-slate-300">Email address</label>
         <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#07150f] px-3 focus-within:border-[#c7f36b]/50">
           <Mail className="h-4 w-4 shrink-0 text-slate-500" />
@@ -84,8 +119,13 @@ export function AuthDialog({ open, user, onClose, onSignedOut }: Props) {
         {!isSupabaseConfigured && !error && <p className="mt-3 text-xs leading-5 text-slate-500">Cloud sign-in is being connected. You can still explore the planner without an account.</p>}
         <button type="submit" disabled={busy} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#c7f36b] px-4 text-sm font-black text-[#102018] transition hover:bg-[#d7ff84] disabled:cursor-wait disabled:opacity-60">{busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <>Email me a sign-in link <ArrowRight className="h-4 w-4" /></>}</button>
         <p className="mt-3 text-center text-[11px] leading-5 text-slate-500">No password needed. Play XI uses your public FPL Team ID and never asks for your FPL password.</p>
-      </form>}
+        </form>
+      </>}
       {error && <p role="alert" className="mt-3 rounded-lg border border-rose-900 bg-rose-950/30 px-3 py-2 text-xs leading-5 text-rose-200">{error}</p>}
     </section>
   </div>;
+}
+
+function GoogleMark() {
+  return <span aria-hidden="true" className="text-xl font-black leading-none text-[#4285f4]">G</span>;
 }

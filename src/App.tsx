@@ -24,6 +24,7 @@ export default function App() {
   const [entryId, setEntryId] = useState('');
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
+  const [authCallbackError, setAuthCallbackError] = useState('');
 
   useEffect(() => {
     const savedEntryId = window.localStorage.getItem(ENTRY_STORAGE_KEY);
@@ -43,6 +44,29 @@ export default function App() {
       active = false;
       subscription.unsubscribe();
     };
+  }, []);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const hasHashAuthError = hashParams.has('error') || hashParams.has('error_description');
+    const callbackError = searchParams.has('error') || searchParams.has('error_description')
+      || hasHashAuthError;
+    if (!callbackError) return;
+
+    setAuthCallbackError('Google sign-in was cancelled or could not be completed. Try again or use email sign-in.');
+    setAuthDialogOpen(true);
+
+    for (const key of ['error', 'error_code', 'error_description']) {
+      searchParams.delete(key);
+      hashParams.delete(key);
+    }
+    const url = new URL(window.location.href);
+    url.search = searchParams.toString();
+    if (hasHashAuthError) {
+      url.hash = hashParams.toString();
+    }
+    window.history.replaceState(null, document.title, url);
   }, []);
 
   useEffect(() => {
@@ -85,6 +109,6 @@ export default function App() {
       </div>
     </div>
     )}
-    <AuthDialog open={authDialogOpen} user={authUser} onClose={() => setAuthDialogOpen(false)} onSignedOut={() => setAuthUser(null)} />
+    <AuthDialog open={authDialogOpen} user={authUser} callbackError={authCallbackError} onClose={() => setAuthDialogOpen(false)} onSignedOut={() => setAuthUser(null)} />
   </>;
 }
