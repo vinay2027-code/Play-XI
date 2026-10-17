@@ -1844,3 +1844,24 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Landing page shares the clubhouse palette and a single alignment grid. */
+.landing-page { color: #171a20; background: #f6f6f2; }
+.landing-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: clamp(28px, 4vw, 64px); max-width: 1280px; margin: auto; padding: 56px 32px; }
+.landing-hero-copy { padding-top: 0; min-width: 0; }
+.landing-hero-copy h1 { font-size: clamp(42px, 4.4vw, 66px); line-height: 1.06; letter-spacing: -.05em; max-width: 580px; }
+.landing-hero-copy > p { max-width: 460px; font-size: 17px; line-height: 1.7; }
+.landing-hero-copy > div:first-child { margin-bottom: 24px; background: #eae5fa; border-color: #d7cdef; }
+.landing-preview > div:last-child { box-shadow: 0 16px 48px #2020200b; border-color: #deded8; border-radius: 24px; }
+.landing-preview .landing-demo-panel { min-height: 340px; }
+.landing-page .landing-pitch-motion { animation: none; }
+.landing-page .landing-player-token { animation: none; }
+.landing-page .landing-player-orb { color: #c7f36b; }
+.landing-page .landing-pitch-motion .landing-player-token > span:last-child { background: #092b24; color: white; border-color: #ffffff30; }
+.landing-page .landing-final { background: #e8e1f8; border-color: #d4c8ec; }
+.landing-page :is(button,a,summary):focus-visible { outline: 3px solid #7855c5; outline-offset: 4px; }
+.landing-page section[id] { scroll-margin-top: 88px; }
+@media (max-width: 1023px) { .landing-hero { grid-template-columns: minmax(0,1fr); max-width: 760px; padding-top: 32px; } .landing-hero-copy { padding-top: 0; } .landing-hero-copy h1 { max-width: 650px; } }
+@media (max-width: 639px) { .landing-hero { padding: 28px 20px 36px; gap: 28px; } .landing-hero-copy h1 { font-size: 44px; } .landing-hero-copy > p { font-size: 16px; } .landing-preview [aria-label="Preview Play XI tools"] button { padding-inline: 4px; } .landing-preview > div:last-child > div:first-child > span { display: none; } .landing-page header > div { gap: 10px; } .landing-page header button { padding-inline: 10px; font-size: 12px; } }
+
+.landing-page [aria-label="Play XI home"] .font-black > span { color: #6040b5; }
