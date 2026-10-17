@@ -579,7 +579,7 @@ export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntr
             </div>}
             {!editingLineup && lineupMessage && <p role="status" className="px-4 pt-3 text-xs text-[#adffd0] sm:px-6">{lineupMessage}</p>}
 
-            <div className="relative isolate mx-3 my-3 flex min-h-[450px] flex-col justify-between gap-4 overflow-hidden rounded-2xl border border-emerald-200/25 bg-[linear-gradient(90deg,rgba(255,255,255,.035)_1px,transparent_1px),linear-gradient(180deg,#07864f,#087446)] bg-[size:50%_100%,100%_25%] p-4 py-6 sm:mx-5 sm:my-5 sm:min-h-[560px] sm:gap-5 sm:p-7">
+            <div className="sport-pitch relative isolate mx-3 my-3 flex min-h-[450px] flex-col justify-between gap-4 overflow-hidden rounded-2xl border border-emerald-200/25 bg-[linear-gradient(90deg,rgba(255,255,255,.035)_1px,transparent_1px),linear-gradient(180deg,#07864f,#087446)] bg-[size:50%_100%,100%_25%] p-4 py-6 sm:mx-5 sm:my-5 sm:min-h-[560px] sm:gap-5 sm:p-7">
               <div aria-hidden="true" className="pointer-events-none absolute inset-3 rounded-xl border border-white/35" />
               <div aria-hidden="true" className="pointer-events-none absolute inset-x-3 top-1/2 border-t border-white/30" />
               <div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30 sm:h-32 sm:w-32" />

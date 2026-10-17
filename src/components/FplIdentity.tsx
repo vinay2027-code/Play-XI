@@ -6,7 +6,7 @@ export function PlayerPortrait({ photo, name, size = 'md' }: { photo?: string; n
   const [failed, setFailed] = useState(false);
   const photoId = photo?.match(/^(\d+)\.jpg$/)?.[1];
   const dimensions = size === 'lg' ? 'h-16 w-16' : size === 'sm' ? 'h-9 w-9' : 'h-12 w-12';
-  const imageSize = size === 'lg' ? '110x140' : '250x250';
+  const imageSize = '250x250';
 
   return <span className={`relative inline-flex ${dimensions} shrink-0 items-end justify-center overflow-hidden rounded-full border border-white/10 bg-[#193044]`}>
     {photoId && !failed ? <img src={`${IMAGE_ROOT}/photos/players/${imageSize}/p${photoId}.png`} alt={`${name} portrait`} loading="lazy" onError={() => setFailed(true)} className="h-full w-full object-cover object-top" /> : <span aria-hidden="true" className="pb-1 text-xs font-bold text-slate-300">{name.split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase()}</span>}
