@@ -212,6 +212,7 @@ export function MatchCentreScreen() {
             {view === 'news' && (
               <div className="sport-hub-news">
                 {!news && <div className="sport-hub-empty" role="status">Finding recent football headlines…</div>}
+                {news?.message && news.articles.length > 0 && <p className="sport-hub-news-note">{news.message}</p>}
                 {news?.articles.map((article) => <a className="sport-hub-story" href={article.url} key={article.url} target="_blank" rel="noopener noreferrer"><span><small>{article.source} {article.published ? `· ${article.published}` : ''}</small><strong>{article.title}</strong></span><ArrowUpRight size={18} /></a>)}
                 {news && !news.articles.length && <div className="sport-hub-empty">{news.message || 'No recent headlines were returned.'}</div>}
                 <p className="sport-hub-note">Headlines link to the original publisher. Articles and images are not republished here.</p>
