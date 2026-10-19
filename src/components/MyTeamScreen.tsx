@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRightLeft, CalendarDays, Link2, ShieldAlert, Users } from 'lucide-react';
-import type { FplBootstrap, FplEntry, FplFixture, FplFixturesResponse, FplPick, FplPicksResponse, FplRecommendationsResponse, FplTransferRecord } from '../types/football';
+import type { FplBootstrap, FplEntry, FplEventLiveResponse, FplFixture, FplFixturesResponse, FplPick, FplPicksResponse, FplRecommendationsResponse, FplTransferRecord } from '../types/football';
 import { fplAvailability, formatFplPrice, formatLocalDateTime } from '../utils/fpl';
 import { suggestLineup, type LineupPlan } from '../utils/lineupAdvisor';
 import { saveFirstRecommendationSnapshot, type RecommendationSnapshot } from '../utils/recommendationHistory';
@@ -12,6 +12,11 @@ const STORAGE_KEY = 'playxi-fpl-entry-id';
 const ENTRY_OWNER_KEY = 'playxi-fpl-entry-owner';
 const LINEUP_OWNER_KEY = 'playxi-lineup-owner';
 const EMPTY_FIXTURES: FplFixture[] = [];
+const FORMATIONS = [3, 4, 5].flatMap((defenders) => [2, 3, 4, 5].map((midfielders) => ({
+  defenders,
+  midfielders,
+  forwards: 10 - defenders - midfielders,
+}))).filter(({ forwards }) => forwards >= 1 && forwards <= 3);
 function lineupPlanKey(entryId: string, eventId: number) { return `playxi-lineup:${entryId}:${eventId}`; }
 
 function isValidPlan(plan: LineupPlan, picks: FplPick[], players: FplBootstrap['players']) {
@@ -58,6 +63,7 @@ export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntr
   const [entry, setEntry] = useState<FplEntry | null>(null);
   const [bootstrap, setBootstrap] = useState<FplBootstrap | null>(null);
   const [picks, setPicks] = useState<FplPicksResponse | null>(null);
+  const [eventPoints, setEventPoints] = useState<FplEventLiveResponse | null>(null);
   const [recommendations, setRecommendations] = useState<FplRecommendationsResponse | null>(null);
   const [fixtures, setFixtures] = useState<FplFixturesResponse | null>(null);
   const [recommendationSnapshot, setRecommendationSnapshot] = useState<RecommendationSnapshot | null>(null);
@@ -95,6 +101,7 @@ export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntr
     onEntryLoaded(null, '');
     setBootstrap(null);
     setPicks(null);
+    setEventPoints(null);
     setRecommendations(null);
     setFixtures(null);
     setRecommendationSnapshot(null);
@@ -204,6 +211,7 @@ export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntr
       setEntry(entryData);
       setBootstrap(bootData);
       setPicks(picksData);
+      setEventPoints(null);
       setPlanningEventId(eventId ?? null);
       setAsOfEventId(picksEventId);
       setPlanningBankTenths(bankTenths);
@@ -231,6 +239,8 @@ export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntr
         setEntry(null);
         setBootstrap(null);
         setPicks(null);
+        setEventPoints(null);
+        setAsOfEventId(null);
         setRecommendations(null);
         setFixtures(null);
         setRecommendationSnapshot(null);
@@ -248,6 +258,8 @@ export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntr
     setEntry(null);
     setBootstrap(null);
     setPicks(null);
+    setEventPoints(null);
+    setAsOfEventId(null);
     setRecommendations(null);
     setFixtures(null);
     setRecommendationSnapshot(null);
@@ -282,6 +294,8 @@ export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntr
           setEntryId('');
           setEntry(null);
           setPicks(null);
+          setEventPoints(null);
+          setAsOfEventId(null);
           setRecommendations(null);
           setFixtures(null);
           setRecommendationSnapshot(null);
@@ -329,6 +343,21 @@ export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntr
   const picksAreForPreviousEvent = asOfEventId !== null && planningEventId !== null && asOfEventId !== planningEventId;
   const picksEventLabel = bootstrap?.events.find((event) => event.id === asOfEventId)?.name ?? (asOfEventId ? `Gameweek ${asOfEventId}` : 'published Gameweek');
   const currentPlanKey = entryId && planningEventId !== null ? lineupPlanKey(entryId, planningEventId) : '';
+
+  useEffect(() => {
+    if (asOfEventId === null || !picks) return;
+    let active = true;
+    const refreshPoints = () => {
+      void fetch(`/api/fpl/event/${asOfEventId}/live`)
+        .then(async (response) => response.ok ? await response.json() as FplEventLiveResponse : null)
+        .then((data) => { if (active && data?.eventId === asOfEventId) setEventPoints(data); })
+        .catch(() => { if (active) setEventPoints(null); });
+    };
+    setEventPoints((current) => current?.eventId === asOfEventId ? current : null);
+    refreshPoints();
+    const refreshInterval = window.setInterval(refreshPoints, 30_000);
+    return () => { active = false; };
+  }, [asOfEventId, picks]);
 
   useEffect(() => {
     if (!picks || !bootstrap || !currentPlanKey || !picksAreForPreviousEvent) return;
@@ -399,6 +428,13 @@ export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntr
     );
     return { startingPicks, benchPicks, positionRows, formation, startingExpectedPoints };
   }, [lineup, playerById]);
+  const scoredPoints = eventPoints?.eventId === asOfEventId ? eventPoints.points : null;
+  const startingScoredPoints = scoredPoints
+    ? startingPicks.reduce((total, pick) => total + (scoredPoints[pick.element] ?? 0) * (pick.multiplier || 1), 0)
+    : null;
+  const draftFormation = useMemo(() => (['DEF', 'MID', 'FWD'] as const).map((position) =>
+    draftStarters.filter((id) => playerById.get(id)?.position === position).length,
+  ).join('-'), [draftStarters, playerById]);
 
   const recommendationList = recommendations?.freeIdeas ?? [];
   const recommendationEmptyMessage = recommendationsError || (!recommendations
@@ -433,9 +469,59 @@ export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntr
       if (draftCaptain === element) setDraftCaptain(null);
       if (draftViceCaptain === element) setDraftViceCaptain(null);
     } else {
-      setDraftStarters((current) => current.length >= 11 ? current : [...current, element]);
+      if (draftStarters.length >= 11) return;
+      setDraftStarters((current) => [...current, element]);
       setDraftBench((current) => current.filter((id) => id !== element));
     }
+  }
+
+  function applyFormation(defenders: number, midfielders: number, forwards: number) {
+    const positions = [
+      { position: 'DEF', count: defenders },
+      { position: 'MID', count: midfielders },
+      { position: 'FWD', count: forwards },
+      { position: 'GKP', count: 1 },
+    ] as const;
+    const allIds = [...new Set([...draftStarters, ...draftBench])];
+    const starters = positions.flatMap(({ position, count }) => {
+      const available = allIds.filter((id) => playerById.get(id)?.position === position);
+      const selected = available.filter((id) => draftStarters.includes(id));
+      const remaining = available.filter((id) => !draftStarters.includes(id)).sort((a, b) =>
+        (playerById.get(b)?.expectedPointsNext ?? 0) - (playerById.get(a)?.expectedPointsNext ?? 0),
+      );
+      return [...selected.slice(0, count), ...remaining.slice(0, Math.max(0, count - selected.length))];
+    });
+    const starterSet = new Set(starters);
+    const displaced = draftStarters.filter((id) => !starterSet.has(id));
+    const bench = [...draftBench.filter((id) => !starterSet.has(id)), ...displaced]
+      .filter((id, index, ids) => ids.indexOf(id) === index)
+      .sort((a, b) => Number(playerById.get(b)?.position === 'GKP') - Number(playerById.get(a)?.position === 'GKP'));
+    const nextCaptain = draftCaptain !== null && starterSet.has(draftCaptain)
+      ? draftCaptain
+      : [...starters].sort((a, b) => (playerById.get(b)?.expectedPointsNext ?? 0) - (playerById.get(a)?.expectedPointsNext ?? 0))[0] ?? null;
+    const nextViceCaptain = draftViceCaptain !== null && starterSet.has(draftViceCaptain) && draftViceCaptain !== nextCaptain
+      ? draftViceCaptain
+      : starters.find((id) => id !== nextCaptain) ?? null;
+
+    setDraftStarters(starters);
+    setDraftBench(bench);
+    setDraftCaptain(nextCaptain);
+    setDraftViceCaptain(nextViceCaptain);
+    setLineupMessage(`Formation ${defenders}-${midfielders}-${forwards} selected. Save plan to apply it.`);
+  }
+
+  function restoreOfficialLineup() {
+    if (!picksAreForPreviousEvent || !picks?.picks.length) return;
+    const officialPicks = [...picks.picks].sort((a, b) => a.position - b.position);
+    const starters = officialPicks.filter((pick) => pick.position <= 11).map((pick) => pick.element);
+    const bench = officialPicks.filter((pick) => pick.position > 11).map((pick) => pick.element);
+    const captain = officialPicks.find((pick) => pick.is_captain)?.element ?? starters[0] ?? null;
+    const viceCaptain = officialPicks.find((pick) => pick.is_vice_captain)?.element ?? starters.find((id) => id !== captain) ?? null;
+    setDraftStarters(starters);
+    setDraftBench(bench);
+    setDraftCaptain(captain);
+    setDraftViceCaptain(viceCaptain);
+    setLineupMessage('Latest official FPL lineup loaded. Save plan to restore it in Play XI.');
   }
 
   function saveLineup() {
@@ -540,11 +626,24 @@ export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntr
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/8 px-4 py-4 sm:px-6">
               <div><div className="mb-1 text-[10px] font-bold uppercase tracking-[.18em] text-[#00FF87]">{picksAreForPreviousEvent ? `Planning · ${selectedEvent?.name ?? 'Next Gameweek'}` : selectedEvent?.name ?? 'Next Gameweek'}</div><h2 id="starting-xi-title" className="text-xl font-black tracking-tight text-white sm:text-2xl">{picksAreForPreviousEvent ? manualPlan?.key === currentPlanKey ? 'Your planned XI' : 'Plan your starting XI' : 'Your starting XI'}</h2><p className="mt-1 text-xs text-slate-400">{picksAreForPreviousEvent ? manualPlan?.key === currentPlanKey ? `Your ${selectedEvent?.name ?? 'Gameweek'} plan is saved on this device. Latest published official picks: ${picksEventLabel}.` : `FPL has not published ${selectedEvent?.name ?? 'the upcoming Gameweek'} picks yet. Latest published official picks: ${picksEventLabel}. Set your own XI below; the plan stays on this device.` : 'Your official FPL lineup, including any automatic substitutions.'}</p></div>
               {picksAreForPreviousEvent && <button type="button" onClick={beginLineupEdit} className="rounded-lg border border-[#00FF87]/30 bg-[#00FF87]/10 px-3 py-2 text-xs font-bold text-[#b4ffd0] hover:bg-[#00FF87]/15">{manualPlan?.key === currentPlanKey ? 'Edit lineup' : 'Set lineup'}</button>}
-              <div className="flex items-center gap-2"><span className="rounded-lg border border-white/10 bg-[#091726] px-3 py-2 text-xs font-bold text-white">{formation}</span><span className="rounded-lg border border-[#00FF87]/15 bg-[#00FF87]/[.07] px-3 py-2 text-xs font-bold text-[#adffd0]">{startingExpectedPoints.toFixed(1)} xP</span></div>
+              <div className="flex flex-wrap items-center gap-2"><span className="rounded-lg border border-white/10 bg-[#091726] px-3 py-2 text-xs font-bold text-white">{formation}</span><span className="rounded-lg border border-white/10 bg-[#091726] px-3 py-2 text-xs font-bold text-slate-200">GW {asOfEventId ?? '—'} pts · {startingScoredPoints === null ? '—' : startingScoredPoints}</span><span className="rounded-lg border border-[#00FF87]/15 bg-[#00FF87]/[.07] px-3 py-2 text-xs font-bold text-[#adffd0]">Next GW · {startingExpectedPoints.toFixed(1)} xP</span></div>
             </div>
 
             {editingLineup && <div className="border-b border-white/8 bg-[#091726]/70 p-4 sm:p-6">
               <div className="mb-4"><h3 className="font-bold text-white">Set your {selectedEvent?.name ?? 'Gameweek'} lineup</h3><p className="mt-1 text-xs leading-5 text-slate-400">Select 11 starters. FPL keeps upcoming picks private, so this plan is saved only in this browser and is never sent to FPL.</p></div>
+              <div className="mb-4 rounded-xl border border-white/8 bg-[#0d1c2d] p-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div><h4 className="text-xs font-bold text-white">Choose formation</h4><p className="mt-1 text-[10px] text-slate-400">All legal FPL shapes. Players stay selected where possible.</p></div>
+                  <button type="button" onClick={restoreOfficialLineup} className="rounded-lg border border-[#00FF87]/30 px-3 py-2 text-xs font-bold text-[#b4ffd0] hover:bg-[#00FF87]/10">Restore official FPL</button>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2" aria-label="Available formations">
+                  {FORMATIONS.map(({ defenders, midfielders, forwards }) => {
+                    const label = `${defenders}-${midfielders}-${forwards}`;
+                    const selected = draftFormation === label;
+                    return <button key={label} type="button" aria-pressed={selected} onClick={() => applyFormation(defenders, midfielders, forwards)} className={`rounded-lg border px-3 py-2 text-xs font-bold transition-colors ${selected ? 'border-[#00FF87] bg-[#00FF87] text-[#051424]' : 'border-white/10 bg-[#091726] text-slate-300 hover:border-[#00FF87]/40 hover:text-white'}`}>{label}</button>;
+                  })}
+                </div>
+              </div>
               <div className="grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
                 <div className="grid gap-2 sm:grid-cols-2">
                   {lineup.map((pick) => {
@@ -602,7 +701,7 @@ export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntr
                       <div className="relative z-10 w-full rounded-lg border border-white/15 bg-[#071521]/90 px-1.5 pb-1.5 pt-2 shadow-lg">
                         <div className="truncate text-[10px] font-extrabold text-white sm:text-xs">{player.webName}</div>
                         {wasAutomaticallySubbedIn && <div className="text-[8px] font-black uppercase tracking-wider text-[#8bffb8]">Auto-sub</div>}
-                        <div className="mt-0.5 font-mono text-[10px] font-bold text-[#8bffb8]">{player.expectedPointsNext.toFixed(1)} xP</div>
+                        <div className="mt-1 space-y-0.5 font-mono text-[9px] font-bold leading-tight"><div className="text-slate-200">GW {asOfEventId ?? '—'} · {scoredPoints ? scoredPoints[pick.element] ?? 0 : '—'} pts</div><div className="text-[#8bffb8]">Next · {player.expectedPointsNext.toFixed(1)} xP</div></div>
                       </div>
                     </div>;
                   })}
@@ -619,7 +718,7 @@ export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntr
                   const issue = fplAvailability(player);
                   return <div key={pick.element} className="flex min-w-0 items-center gap-2 rounded-xl border border-white/8 bg-[#0d1c2d] p-2.5">
                     <PlayerPortrait photo={player.photo} name={player.webName} size="sm" />
-                    <div className="min-w-0"><div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{automaticSubOuts.has(pick.element) ? 'Auto-subbed out' : player.position === 'GKP' ? 'Reserve GK' : `Sub ${benchPicks.filter((candidate) => playerById.get(candidate.element)?.position !== 'GKP').findIndex((candidate) => candidate.element === pick.element) + 1}`}</div><div className="truncate text-xs font-bold text-white">{player.webName}</div><div className="flex items-center gap-1 text-[10px] text-slate-400"><TeamBadge code={player.teamCode} name={player.teamName} size={13} />{player.position} · {player.expectedPointsNext.toFixed(1)} xP</div></div>
+                    <div className="min-w-0"><div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{automaticSubOuts.has(pick.element) ? 'Auto-subbed out' : player.position === 'GKP' ? 'Reserve GK' : `Sub ${benchPicks.filter((candidate) => playerById.get(candidate.element)?.position !== 'GKP').findIndex((candidate) => candidate.element === pick.element) + 1}`}</div><div className="truncate text-xs font-bold text-white">{player.webName}</div><div className="flex items-center gap-1 text-[10px] text-slate-400"><TeamBadge code={player.teamCode} name={player.teamName} size={13} />{player.position}</div><div className="mt-1 font-mono text-[9px] font-bold leading-tight text-slate-200">GW {asOfEventId ?? '—'} · {scoredPoints ? scoredPoints[pick.element] ?? 0 : '—'} pts</div><div className="font-mono text-[9px] font-bold leading-tight text-[#8bffb8]">Next · {player.expectedPointsNext.toFixed(1)} xP</div></div>
                     {issue && <span title={issue} className="ml-auto text-amber-300"><ShieldAlert className="h-3.5 w-3.5" /></span>}
                   </div>;
                 })}

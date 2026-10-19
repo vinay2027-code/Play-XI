@@ -1863,5 +1863,3 @@
 .landing-page section[id] { scroll-margin-top: 88px; }
 @media (max-width: 1023px) { .landing-hero { grid-template-columns: minmax(0,1fr); max-width: 760px; padding-top: 32px; } .landing-hero-copy { padding-top: 0; } .landing-hero-copy h1 { max-width: 650px; } }
 @media (max-width: 639px) { .landing-hero { padding: 28px 20px 36px; gap: 28px; } .landing-hero-copy h1 { font-size: 44px; } .landing-hero-copy > p { font-size: 16px; } .landing-preview [aria-label="Preview Play XI tools"] button { padding-inline: 4px; } .landing-preview > div:last-child > div:first-child > span { display: none; } .landing-page header > div { gap: 10px; } .landing-page header button { padding-inline: 10px; font-size: 12px; } }
-
-.landing-page [aria-label="Play XI home"] .font-black > span { color: #6040b5; }

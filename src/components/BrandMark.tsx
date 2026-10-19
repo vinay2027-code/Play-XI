@@ -22,7 +22,7 @@ export function BrandLockup({ size = 40, dark = false }: { size?: number; dark?:
     <span className="inline-flex items-center gap-2.5">
       <BrandMark size={size} />
       <span className={`font-black tracking-tight ${dark ? 'text-[#102018]' : 'text-white'}`}>
-        PLAY<span className="text-[#C7F36B]">XI</span>
+        PLAY<span className={dark ? 'text-[#6040b5]' : 'text-[#C7F36B]'}>XI</span>
       </span>
     </span>
   );
