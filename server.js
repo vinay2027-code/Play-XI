@@ -2,11 +2,13 @@ import 'dotenv/config';
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { registerFootballHubRoutes } from './server/footballHub.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 3000);
 const fplApi = 'https://fantasy.premierleague.com/api';
 const app = express();
+registerFootballHubRoutes(app);
 
 class ApiError extends Error {
   constructor(status, message) {

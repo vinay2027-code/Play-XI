@@ -14,6 +14,7 @@ import { FplManagerScreen } from './components/FplManagerScreen';
 import { LandingPage } from './components/LandingPage';
 import { AuthDialog } from './components/AuthDialog';
 import { DashboardScreen } from './components/DashboardScreen';
+import { MatchCentreScreen } from './components/MatchCentreScreen';
 import { supabase } from './lib/supabase';
 import type { FplEntry } from './types/football';
 
@@ -105,6 +106,7 @@ export default function App() {
         <LandingPage
           onOpenPlanner={() => setActiveScreen('myteam')}
           onOpenOverview={() => setActiveScreen('dashboard')}
+          onOpenMatchCentre={() => setActiveScreen('matchcentre')}
           onSignIn={() => setAuthDialogOpen(true)}
           authUserEmail={authUser?.email ?? null}
         />
@@ -154,6 +156,7 @@ export default function App() {
                 />
               )}
               {activeScreen === 'fixtures' && <FixturesScreen />}
+              {activeScreen === 'matchcentre' && <MatchCentreScreen />}
               {activeScreen === 'manager' && (
                 <FplManagerScreen
                   entry={entry}
