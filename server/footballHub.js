@@ -222,35 +222,72 @@ async function loadTeamPlayers(league, teamId) {
   });
 }
 
+function newsArticles(payload) {
+  const seen = new Set();
+  return (Array.isArray(payload) ? payload.flatMap((item) => item.results ?? []) : [])
+    .filter((article) => {
+      try {
+        const url = new URL(article.url);
+        if (!['https:', 'http:'].includes(url.protocol) || !article.title || seen.has(url.href)) return false;
+        seen.add(url.href);
+        return true;
+      } catch { return false; }
+    })
+    .slice(0, 12)
+    .map((article) => ({ title: String(article.title), url: article.url, source: article.source || 'News source', published: article.published || null }));
+}
+
+async function savedNews() {
+  if (!process.env.APIFY_NEWS_CACHE_DATASET_ID) return [];
+  const items = await getJson(`https://api.apify.com/v2/datasets/${process.env.APIFY_NEWS_CACHE_DATASET_ID}/items?format=json&clean=true&desc=true&limit=1`, {
+    Authorization: `Bearer ${process.env.APIFY_TOKEN}`,
+  });
+  return newsArticles(items);
+}
+
+async function saveNews(item) {
+  if (!process.env.APIFY_NEWS_CACHE_DATASET_ID) return;
+  const response = await fetch(`https://api.apify.com/v2/datasets/${process.env.APIFY_NEWS_CACHE_DATASET_ID}/items`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.APIFY_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(item),
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!response.ok) throw new Error(`News cache returned ${response.status}`);
+}
+
 let newsCallsToday = { day: '', count: 0 };
 async function loadNews() {
   if (!process.env.APIFY_TOKEN) return { available: false, articles: [], message: 'News is awaiting a server-side Apify token.' };
-  return cached('news', 6 * 60 * 60_000, async () => {
+  return cached('news', 12 * 60 * 60_000, async () => {
     const day = new Date().toISOString().slice(0, 10);
     if (newsCallsToday.day !== day) newsCallsToday = { day, count: 0 };
-    if (newsCallsToday.count >= 4) return { available: false, articles: [], message: 'Today’s free news refresh limit has been reached.' };
-    newsCallsToday.count += 1;
-    const response = await fetch('https://api.apify.com/v2/acts/curly~news-scraper-api/run-sync-get-dataset-items?format=json&timeout=60', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${process.env.APIFY_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: 'football Premier League La Liga Bundesliga Serie A Champions League', time: 'day', pages: 1 }),
-      signal: AbortSignal.timeout(65_000),
-    });
-    if (!response.ok) throw new Error('News provider is temporarily unavailable.');
-    const payload = await response.json();
-    const seen = new Set();
-    const articles = (Array.isArray(payload) ? payload.flatMap((item) => item.results ?? []) : [])
-      .filter((article) => {
-        try {
-          const url = new URL(article.url);
-          if (!['https:', 'http:'].includes(url.protocol) || !article.title || seen.has(url.href)) return false;
-          seen.add(url.href);
-          return true;
-        } catch { return false; }
-      })
-      .slice(0, 12)
-      .map((article) => ({ title: String(article.title), url: article.url, source: article.source || 'News source', published: article.published || null }));
-    return { available: true, articles, fetchedAt: new Date().toISOString(), attribution: 'Headlines via Apify; read full stories at the publisher.' };
+    if (newsCallsToday.count < 2) {
+      newsCallsToday.count += 1;
+      try {
+        const response = await fetch('https://api.apify.com/v2/acts/curly~news-scraper-api/run-sync-get-dataset-items?format=json&timeout=60', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${process.env.APIFY_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: 'football Premier League La Liga Bundesliga Serie A Champions League', time: 'day', pages: 1 }),
+          signal: AbortSignal.timeout(65_000),
+        });
+        if (response.ok) {
+          const payload = await response.json();
+          const articles = newsArticles(payload);
+          if (articles.length) {
+            await saveNews({ ...payload[0], fetchedAt: new Date().toISOString() }).catch(() => {});
+            return { available: true, articles, fetchedAt: new Date().toISOString(), attribution: 'Headlines via Apify; read full stories at the publisher.' };
+          }
+        }
+      } catch { /* Use the last saved headlines when a free refresh is unavailable. */ }
+    }
+    const articles = await savedNews().catch(() => []);
+    return {
+      available: articles.length > 0,
+      articles,
+      message: articles.length ? 'Showing saved headlines until the free news feed refreshes.' : 'No headlines are available from the free news feed yet.',
+      attribution: 'Headlines via Apify; read full stories at the publisher.',
+    };
   });
 }
 

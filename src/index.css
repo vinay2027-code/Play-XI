@@ -466,6 +466,7 @@
 .sport-hub-story > span { display: flex; flex-direction: column; gap: 5px; }
 .sport-hub-story small { color: #797d76; font-size: 10px; }
 .sport-hub-story strong { font-size: 13px; }
+.sport-hub-news-note { margin: 0 0 12px; color: #70746d; font-size: 12px; }
 .sport-hub-empty { padding: 36px 24px; color: #70746d; font-size: 13px; }
 .sport-hub-footer { display: flex; gap: 8px; align-items: start; padding: 13px 22px; border-top: 1px solid #e2e2de; color: #777b76; font-size: 10px; line-height: 1.5; }
 .sport-hub-footer svg { flex: 0 0 auto; }
