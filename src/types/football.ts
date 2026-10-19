@@ -139,6 +139,11 @@ export interface FplPicksResponse {
   picks: FplPick[];
 }
 
+export interface FplEventLiveResponse {
+  eventId: number;
+  points: Record<number, number>;
+}
+
 export interface FplTransferRecord {
   element_in: number;
   element_in_cost: number;

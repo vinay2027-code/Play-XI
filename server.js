@@ -373,6 +373,29 @@ app.get('/api/fpl/fixtures', async (_request, response) => {
   }
 });
 
+app.get('/api/fpl/event/:eventId/live', async (request, response) => {
+  const eventId = Number(request.params.eventId);
+  if (!Number.isSafeInteger(eventId) || eventId < 1) {
+    response.status(400).json({ error: 'Enter a valid Gameweek.' });
+    return;
+  }
+  try {
+    response.set('Cache-Control', 'public, max-age=15');
+    const payload = await fetchFplCached(`event/${eventId}/live/`, 15_000);
+    response.json({
+      eventId,
+      points: Object.fromEntries((payload.elements || []).map((element) => [
+        element.id,
+        Number(element.stats?.total_points) || 0,
+      ])),
+    });
+  } catch (error) {
+    response.status(error instanceof ApiError ? error.status : 502).json({
+      error: error instanceof Error ? error.message : 'Unable to load live Gameweek player points.',
+    });
+  }
+});
+
 app.get('/api/fpl/entry/:entryId/recommendations', async (request, response) => {
   const entryId = Number(request.params.entryId);
   if (!Number.isSafeInteger(entryId) || entryId < 1) {
