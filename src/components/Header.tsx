@@ -73,6 +73,7 @@ export function Header({
               myteam: 'My Team',
               players: 'Player explorer',
               fixtures: 'Fixtures',
+              matchcentre: 'Match Centre',
               manager: 'FPL Manager',
             } as Record<string, string>
           )[activeScreen]

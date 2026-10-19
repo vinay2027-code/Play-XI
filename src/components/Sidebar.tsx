@@ -1,4 +1,4 @@
-import { CalendarDays, LayoutDashboard, Users, UserSearch } from 'lucide-react';
+import { CalendarDays, LayoutDashboard, Trophy, Users, UserSearch } from 'lucide-react';
 interface SidebarProps {
   activeScreen: string;
   onNavigate: (screen: string) => void;
@@ -8,6 +8,7 @@ const items = [
   { id: 'myteam', label: 'My Team', icon: Users },
   { id: 'players', label: 'Players', icon: UserSearch },
   { id: 'fixtures', label: 'Fixtures', icon: CalendarDays },
+  { id: 'matchcentre', label: 'Match Centre', icon: Trophy },
 ];
 export function Sidebar({ activeScreen, onNavigate }: SidebarProps) {
   return (

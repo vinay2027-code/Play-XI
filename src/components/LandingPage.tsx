@@ -11,6 +11,7 @@ import {
   Clock3,
   ShieldCheck,
   Sparkles,
+  Trophy,
   Users,
 } from 'lucide-react';
 import { BrandLockup } from './BrandMark';
@@ -18,6 +19,7 @@ import { BrandLockup } from './BrandMark';
 interface LandingPageProps {
   onOpenPlanner: () => void;
   onOpenOverview: () => void;
+  onOpenMatchCentre: () => void;
   onSignIn: () => void;
   authUserEmail: string | null;
 }
@@ -32,7 +34,7 @@ const transferReasons = [
   ['05', 'Availability & cards', 'Check injury news, playing chance and yellow or red card history.'],
 ];
 
-export function LandingPage({ onOpenPlanner, onOpenOverview, onSignIn, authUserEmail }: LandingPageProps) {
+export function LandingPage({ onOpenPlanner, onOpenOverview, onOpenMatchCentre, onSignIn, authUserEmail }: LandingPageProps) {
   const [activeDemo, setActiveDemo] = useState<DemoTab>('team');
 
   return (
@@ -44,6 +46,7 @@ export function LandingPage({ onOpenPlanner, onOpenOverview, onSignIn, authUserE
             <a href="#how-it-works" className="transition hover:text-[#171a20]">How it works</a>
             <a href="#why-playxi" className="transition hover:text-[#171a20]">Why Play XI</a>
             <a href="#pricing" className="transition hover:text-[#171a20]">Pricing</a>
+            <button type="button" onClick={onOpenMatchCentre} className="transition hover:text-[#171a20]">Match Centre</button>
           </nav>
           <div className="flex items-center gap-2">
             <button onClick={onSignIn} className="inline-flex min-h-10 max-w-36 items-center gap-2 truncate rounded-xl border border-black/15 px-3 text-xs font-bold text-[#343843] transition hover:border-[#c7f36b]/40 hover:text-[#171a20]" title={authUserEmail ?? 'Sign in to save your team across devices'}>
@@ -67,6 +70,7 @@ export function LandingPage({ onOpenPlanner, onOpenOverview, onSignIn, authUserE
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <button onClick={onOpenPlanner} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#c7f36b] px-5 text-sm font-black text-[#102018] transition hover:bg-[#d7ff84] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c7f36b]">Connect your FPL team <ArrowRight className="h-4 w-4" /></button>
               <a href="#sample" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-black/15 px-5 text-sm font-bold text-[#171a20] transition hover:border-black/30 hover:bg-white/[.04]">Explore the preview <ArrowDown className="h-4 w-4" /></a>
+              <button type="button" onClick={onOpenMatchCentre} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-black/15 px-5 text-sm font-bold text-[#171a20] transition hover:border-black/30 hover:bg-white">Explore football leagues <Trophy className="h-4 w-4" /></button>
             </div>
             <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-xs text-[#626976]">
               <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-[#6040b5]" /> Public FPL data only</span>
