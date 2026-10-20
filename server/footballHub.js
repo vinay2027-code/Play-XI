@@ -222,13 +222,25 @@ async function loadTeamPlayers(league, teamId) {
   });
 }
 
+function isRecentNews(published) {
+  const label = String(published ?? '').trim().toLowerCase();
+  if (/^(just now|today|yesterday)$/.test(label)) return true;
+  const relative = label.match(/^(\d+)\s+(minute|hour|day|week)s?\s+ago$/);
+  if (relative) {
+    const [, amount, unit] = relative;
+    return Number(amount) * ({ minute: 1 / 1440, hour: 1 / 24, day: 1, week: 7 })[unit] <= 7;
+  }
+  const timestamp = Date.parse(label);
+  return Number.isFinite(timestamp) && timestamp <= Date.now() + 86_400_000 && timestamp >= Date.now() - 7 * 86_400_000;
+}
+
 function newsArticles(payload) {
   const seen = new Set();
   return (Array.isArray(payload) ? payload.flatMap((item) => item.results ?? []) : [])
     .filter((article) => {
       try {
         const url = new URL(article.url);
-        if (!['https:', 'http:'].includes(url.protocol) || !article.title || seen.has(url.href)) return false;
+        if (!['https:', 'http:'].includes(url.protocol) || !article.title || !isRecentNews(article.published) || seen.has(url.href)) return false;
         seen.add(url.href);
         return true;
       } catch { return false; }
