@@ -28,6 +28,38 @@ export default function App() {
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authCallbackError, setAuthCallbackError] = useState('');
   const [compareIds, setCompareIds] = useState<number[]>([]);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+
+  useEffect(() => {
+    if (!import.meta.env.PROD) return;
+    const currentScript = document.querySelector<HTMLScriptElement>('script[type="module"][src]')?.getAttribute('src');
+    if (!currentScript) return;
+
+    const controller = new AbortController();
+    const checkForUpdate = async () => {
+      if (document.visibilityState === 'hidden') return;
+      try {
+        const response = await fetch('/', { cache: 'no-store', signal: controller.signal });
+        if (!response.ok) return;
+        const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+        const latestScript = page.querySelector<HTMLScriptElement>('script[type="module"][src]')?.getAttribute('src');
+        if (latestScript && latestScript !== currentScript) setUpdateAvailable(true);
+      } catch {
+        // Keep the current page usable when a version check cannot reach the server.
+      }
+    };
+
+    const onVisible = () => { void checkForUpdate(); };
+    const interval = window.setInterval(onVisible, 5 * 60_000);
+    window.addEventListener('focus', onVisible);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      controller.abort();
+      window.clearInterval(interval);
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
 
   useEffect(() => {
     const savedEntryId = window.localStorage.getItem(ENTRY_STORAGE_KEY);
@@ -175,6 +207,12 @@ export default function App() {
         onClose={() => setAuthDialogOpen(false)}
         onSignedOut={() => setAuthUser(null)}
       />
+      {updateAvailable && (
+        <div role="status" className="fixed bottom-24 left-4 right-4 z-50 mx-auto flex max-w-md items-center justify-between gap-4 rounded-2xl border border-[#c7f36b]/40 bg-[#102018] p-4 text-sm text-white shadow-2xl md:bottom-6">
+          <span>A new Play XI update is ready.</span>
+          <button type="button" onClick={() => window.location.reload()} className="shrink-0 rounded-lg bg-[#c7f36b] px-3 py-2 font-bold text-[#102018]">Refresh</button>
+        </div>
+      )}
     </>
   );
 }
