@@ -186,6 +186,9 @@ export interface FplTransferIdea {
 export interface FplRecommendationsResponse {
   eventId: number;
   freeIdeas: FplTransferIdea[];
+  paidIdeas?: FplTransferIdea[];
+  unlocked?: boolean;
+  checkoutAvailable?: boolean;
   lockedCount: number;
   availableCount: number;
 }

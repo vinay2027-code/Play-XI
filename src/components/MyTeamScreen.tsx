@@ -7,6 +7,7 @@ import { saveFirstRecommendationSnapshot, type RecommendationSnapshot } from '..
 import { loadGameweekPlan, loadManagerAccount, saveGameweekPlan, saveManagerAccount } from '../utils/accountSync';
 import { PlayerPortrait, TeamBadge } from './FplIdentity';
 import { GameweekBrief } from './GameweekBrief';
+import { supabase } from '../lib/supabase';
 
 const STORAGE_KEY = 'playxi-fpl-entry-id';
 const ENTRY_OWNER_KEY = 'playxi-fpl-entry-owner';
@@ -58,7 +59,7 @@ function picksWithAutomaticSubs(picks: FplPicksResponse | null) {
   return lineup;
 }
 
-export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntryLoaded }: { userId: string | null; onBrowsePlayers: () => void; onBrowseFixtures: () => void; onEntryLoaded: (entry: FplEntry | null, entryId: string) => void }) {
+export function MyTeamScreen({ userId, checkoutReturned, onSignIn, onBrowsePlayers, onBrowseFixtures, onEntryLoaded }: { userId: string | null; checkoutReturned: boolean; onSignIn: () => void; onBrowsePlayers: () => void; onBrowseFixtures: () => void; onEntryLoaded: (entry: FplEntry | null, entryId: string) => void }) {
   const [entryId, setEntryId] = useState('');
   const [entry, setEntry] = useState<FplEntry | null>(null);
   const [bootstrap, setBootstrap] = useState<FplBootstrap | null>(null);
@@ -69,6 +70,8 @@ export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntr
   const [recommendationSnapshot, setRecommendationSnapshot] = useState<RecommendationSnapshot | null>(null);
   const [recommendationsError, setRecommendationsError] = useState('');
   const [recommendationsLoading, setRecommendationsLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState('');
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [planningEventId, setPlanningEventId] = useState<number | null>(null);
   const [asOfEventId, setAsOfEventId] = useState<number | null>(null);
   const [planningBankTenths, setPlanningBankTenths] = useState<number | null>(null);
@@ -85,6 +88,31 @@ export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntr
   const [accountSyncMessage, setAccountSyncMessage] = useState('');
   const loadRequestId = useRef(0);
   const accountSyncRequestId = useRef(0);
+
+  useEffect(() => {
+    if (!checkoutReturned || !entry?.id || !userId || recommendations?.unlocked) return;
+    let active = true;
+    let timeout: number | undefined;
+    let attempts = 0;
+    const checkUnlock = async () => {
+      attempts += 1;
+      try {
+        const { data: { session } } = await supabase!.auth.getSession();
+        if (!session) return;
+        const response = await fetch(`/api/fpl/entry/${entry.id}/recommendations`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (response.ok) {
+          const next = await response.json() as FplRecommendationsResponse;
+          if (active) setRecommendations(next);
+          if (next.unlocked) return;
+        }
+      } catch { /* A delayed webhook can be checked again shortly. */ }
+      if (active && attempts < 10) timeout = window.setTimeout(() => void checkUnlock(), 3000);
+    };
+    void checkUnlock();
+    return () => { active = false; if (timeout) window.clearTimeout(timeout); };
+  }, [checkoutReturned, entry?.id, userId, recommendations?.unlocked]);
 
   async function loadTeam(id: string, save = false) {
     const requestId = ++loadRequestId.current;
@@ -114,7 +142,12 @@ export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntr
     setEditingLineup(false);
     setLineupMessage('');
     try {
-      void fetch(`/api/fpl/entry/${cleanId}/recommendations`)
+      void (async () => {
+        const session = await supabase?.auth.getSession();
+        return fetch(`/api/fpl/entry/${cleanId}/recommendations`, {
+          headers: session?.data.session?.access_token ? { Authorization: `Bearer ${session.data.session.access_token}` } : {},
+        });
+      })()
         .then(async (response) => ({ response, payload: await response.json() }))
         .then(({ response, payload }) => {
           if (requestId !== loadRequestId.current) return;
@@ -436,7 +469,29 @@ export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntr
     draftStarters.filter((id) => playerById.get(id)?.position === position).length,
   ).join('-'), [draftStarters, playerById]);
 
-  const recommendationList = recommendations?.freeIdeas ?? [];
+  const recommendationList = [...(recommendations?.freeIdeas ?? []), ...(recommendations?.paidIdeas ?? [])];
+
+  async function startGameweekCheckout() {
+    if (!supabase || !userId) { onSignIn(); return; }
+    setCheckoutError('');
+    setCheckoutLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { onSignIn(); return; }
+      const response = await fetch('/api/payments/gameweek-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ entryId: entryId.trim() }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.checkoutUrl) throw new Error(result.error || 'Could not start checkout.');
+      window.location.assign(result.checkoutUrl);
+    } catch (error) {
+      setCheckoutError(error instanceof Error ? error.message : 'Could not start checkout.');
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }
   const recommendationEmptyMessage = recommendationsError || (!recommendations
     ? 'Transfer ideas are temporarily unavailable. Try refreshing your team.'
     : 'No affordable same-position move improves FPL’s next-gameweek projection right now.');
@@ -727,7 +782,7 @@ export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntr
           </section>
 
           <section className="rounded-3xl border border-[#00FF87]/20 bg-[radial-gradient(ellipse_at_top_right,_rgba(0,255,135,.08),_transparent_50%),#0b1a29] p-4 sm:p-6">
-            <div className="mb-5 flex flex-wrap items-end justify-between gap-3"><div><div className="mb-1 text-[10px] font-bold uppercase tracking-[.18em] text-[#00FF87]">Your free shortlist</div><h2 className="text-xl font-black tracking-tight text-white sm:text-2xl">Transfer ideas to consider</h2><p className="mt-1 max-w-2xl text-xs leading-5 text-slate-400">Compare the outgoing and incoming player, expected-points difference and bank left after the move.</p></div><span className="rounded-full border border-[#00FF87]/20 bg-[#00FF87]/[.07] px-3 py-1.5 text-xs font-bold text-[#c4ffb4]">{recommendationList.length} of 3 free ideas</span></div>
+            <div className="mb-5 flex flex-wrap items-end justify-between gap-3"><div><div className="mb-1 text-[10px] font-bold uppercase tracking-[.18em] text-[#00FF87]">{recommendations?.unlocked ? 'Gameweek unlocked' : 'Your free shortlist'}</div><h2 className="text-xl font-black tracking-tight text-white sm:text-2xl">Transfer ideas to consider</h2><p className="mt-1 max-w-2xl text-xs leading-5 text-slate-400">Compare the outgoing and incoming player, expected-points difference and bank left after the move.</p></div><span className="rounded-full border border-[#00FF87]/20 bg-[#00FF87]/[.07] px-3 py-1.5 text-xs font-bold text-[#c4ffb4]">{recommendations?.unlocked ? `${recommendationList.length} ideas available` : `${recommendationList.length} of 3 free ideas`}</span></div>
             {recommendationsLoading ? <p className="rounded-2xl border border-white/8 bg-[#091726]/70 p-5 text-sm text-slate-300">Checking your squad against current FPL data…</p> : recommendationList.length ? <div className="grid gap-3 xl:grid-cols-3">{recommendationList.map((move, index) => {
               const bankAfter = (planningBankTenths ?? picks.entry_history.bank) / 10 + move.saleValue - move.incoming.cost;
               return <article key={`${move.outgoing.id}-${move.incoming.id}`} className="rounded-2xl border border-white/8 bg-[#091726]/85 p-4 transition hover:border-[#00FF87]/25 sm:p-5">
@@ -744,7 +799,9 @@ export function MyTeamScreen({ userId, onBrowsePlayers, onBrowseFixtures, onEntr
                 </div>
               </article>;
             })}</div> : <p className="rounded-2xl border border-white/8 bg-[#091726]/70 p-5 text-sm leading-6 text-slate-300">{recommendationEmptyMessage}</p>}
-            {recommendations && recommendations.lockedCount > 0 && <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-amber-300/15 bg-amber-300/[.04] p-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="font-semibold text-white">{recommendations.lockedCount} more transfer {recommendations.lockedCount === 1 ? 'idea' : 'ideas'} available</div><p className="mt-1 text-xs text-slate-400">One-time Gameweek unlock · ₹29 · no subscription</p></div><button type="button" disabled aria-describedby="unlock-payment-note" className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-slate-400">Payments coming later <span aria-hidden="true">↗</span></button><span id="unlock-payment-note" className="sr-only">Payments are not available yet.</span></div>}
+            {recommendations && !recommendations.unlocked && recommendations.lockedCount > 0 && <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-amber-300/15 bg-amber-300/[.04] p-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="font-semibold text-white">{recommendations.lockedCount} more transfer {recommendations.lockedCount === 1 ? 'idea' : 'ideas'} available</div><p className="mt-1 text-xs text-slate-400">One-time Gameweek unlock · ₹29 · no subscription</p></div>{recommendations.checkoutAvailable ? <button type="button" onClick={() => void startGameweekCheckout()} disabled={checkoutLoading} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#c7f36b] px-4 py-2.5 text-sm font-bold text-[#102018] disabled:opacity-60">{checkoutLoading ? 'Opening checkout…' : userId ? 'Unlock this Gameweek ↗' : 'Sign in to unlock ↗'}</button> : <span className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-slate-400">Payments coming later</span>}</div>}
+            {checkoutError && <p role="alert" className="mt-3 text-sm text-rose-300">{checkoutError}</p>}
+            {checkoutReturned && !recommendations?.unlocked && <p className="mt-3 text-xs text-slate-300">If you completed checkout, Play XI is checking for Dodo’s payment confirmation. Refresh your team if the unlock has not appeared after a minute.</p>}
             {recommendationSnapshot && <p className="mt-3 text-[11px] text-slate-500">First {recommendationSnapshot.ideas.length} free {recommendationSnapshot.ideas.length === 1 ? 'idea' : 'ideas'} for Gameweek {recommendationSnapshot.eventId} saved on this device at {formatLocalDateTime(recommendationSnapshot.capturedAt, 'first visit')}. This keeps a dated record for a future advice scorecard; it is not a verified outcome yet.</p>}
             <p className="mt-4 text-[11px] leading-5 text-slate-500">Reasons use FPL expected points, form, fixture difficulty, season totals, availability and card data. FPL projections and difficulty ratings are estimates; red cards show season history, not a prediction. Sale values are estimated from transfer history and price-change rules. Hits and chip strategy are not included. Advice only; Play XI never submits transfers.</p>
           </section>

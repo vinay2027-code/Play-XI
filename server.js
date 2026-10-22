@@ -3,6 +3,7 @@ import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerFootballHubRoutes } from './server/footballHub.js';
+import { checkoutAvailable, hasGameweekUnlock, registerPaymentRoutes } from './server/payments.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 3000);
@@ -348,10 +349,13 @@ async function loadTransferPreview(entryId) {
   return {
     eventId: targetEventId,
     freeIdeas: ideas.slice(0, 3),
+    paidIdeas: ideas.slice(3, 8),
     lockedCount: Math.min(5, Math.max(0, ideas.length - 3)),
     availableCount: ideas.length,
   };
 }
+
+registerPaymentRoutes(app, loadTransferPreview);
 
 app.get('/api/fpl/bootstrap', async (_request, response) => {
   try {
@@ -405,8 +409,15 @@ app.get('/api/fpl/entry/:entryId/recommendations', async (request, response) => 
     return;
   }
   try {
-    response.set('Cache-Control', 'private, max-age=30');
-    response.json(await loadTransferPreview(entryId));
+    response.set('Cache-Control', 'private, no-store');
+    const preview = await loadTransferPreview(entryId);
+    const unlocked = await hasGameweekUnlock(request, entryId, preview.eventId);
+    response.json({
+      ...preview,
+      paidIdeas: unlocked ? preview.paidIdeas : [],
+      unlocked,
+      checkoutAvailable,
+    });
   } catch (error) {
     response.status(error instanceof ApiError ? error.status : 502).json({
       error: error instanceof Error ? error.message : 'Unable to calculate transfer ideas for this team.',

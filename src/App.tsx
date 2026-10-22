@@ -29,6 +29,7 @@ export default function App() {
   const [authCallbackError, setAuthCallbackError] = useState('');
   const [compareIds, setCompareIds] = useState<number[]>([]);
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [checkoutReturned, setCheckoutReturned] = useState(false);
 
   useEffect(() => {
     if (!import.meta.env.PROD) return;
@@ -64,6 +65,14 @@ export default function App() {
   useEffect(() => {
     const savedEntryId = window.localStorage.getItem(ENTRY_STORAGE_KEY);
     if (savedEntryId) setEntryId(savedEntryId);
+    const checkout = new URLSearchParams(window.location.search).get('checkout');
+    if (checkout === 'return' || checkout === 'cancelled') {
+      setActiveScreen('myteam');
+      setCheckoutReturned(checkout === 'return');
+      const url = new URL(window.location.href);
+      url.searchParams.delete('checkout');
+      window.history.replaceState(null, document.title, url);
+    }
   }, []);
 
   useEffect(() => {
@@ -176,6 +185,8 @@ export default function App() {
               {activeScreen === 'myteam' && (
                 <MyTeamScreen
                   userId={authUser?.id ?? null}
+                  checkoutReturned={checkoutReturned}
+                  onSignIn={() => setAuthDialogOpen(true)}
                   onBrowsePlayers={() => setActiveScreen('players')}
                   onBrowseFixtures={() => setActiveScreen('fixtures')}
                   onEntryLoaded={handleEntryLoaded}
