@@ -90,7 +90,7 @@ export function AuthDialog({ open, user, callbackError, onClose, onSignedOut }: 
   }
 
   return <div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <section role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title" className="w-full max-w-md rounded-3xl border border-white/10 bg-[#0b1d16] p-5 shadow-2xl sm:p-7">
+    <section role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title" data-clarity-mask className="w-full max-w-md rounded-3xl border border-white/10 bg-[#0b1d16] p-5 shadow-2xl sm:p-7">
       <div className="flex items-start justify-between gap-4">
         <div><div className="mb-3 grid h-11 w-11 place-items-center rounded-2xl bg-[#c7f36b]/10 text-[#c7f36b]"><ShieldCheck className="h-5 w-5" /></div><h2 id="auth-dialog-title" className="text-xl font-black text-white">Save your Play XI</h2><p className="mt-1 text-sm leading-6 text-slate-400">Sign in to keep your FPL Team ID and Gameweek plans synced across devices.</p></div>
         <button type="button" onClick={onClose} aria-label="Close sign-in dialog" className="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white"><X className="h-4 w-4" /></button>
