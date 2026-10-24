@@ -178,7 +178,12 @@ export function LandingPage({ onOpenPlanner, onOpenOverview, onOpenMatchCentre, 
 
       <footer className="border-t border-black/8 px-4 py-6 text-center text-xs leading-5 text-[#626976] sm:px-8">
         <p>Play XI is an independent FPL planning tool. Recommendations are informational, projections are estimates, and every transfer stays under your control.</p>
-        <a href="/privacy.html" className="mt-2 inline-block text-[#626976] underline decoration-white/20 underline-offset-4 transition hover:text-[#171a20]">Privacy policy</a>
+        <nav aria-label="Legal and support" className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
+          <a href="/terms.html" className="text-[#626976] underline decoration-white/20 underline-offset-4 transition hover:text-[#171a20]">Terms of service</a>
+          <a href="/privacy.html" className="text-[#626976] underline decoration-white/20 underline-offset-4 transition hover:text-[#171a20]">Privacy policy</a>
+          <a href="/refunds.html" className="text-[#626976] underline decoration-white/20 underline-offset-4 transition hover:text-[#171a20]">Refunds and cancellation</a>
+          <a href="mailto:vinay2027@mastersunion.org" className="text-[#626976] underline decoration-white/20 underline-offset-4 transition hover:text-[#171a20]">Contact support</a>
+        </nav>
       </footer>
     </div>
   );
