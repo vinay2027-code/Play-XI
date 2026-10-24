@@ -13,6 +13,7 @@ import { MyTeamScreen } from './components/MyTeamScreen';
 import { FplManagerScreen } from './components/FplManagerScreen';
 import { LandingPage } from './components/LandingPage';
 import { AuthDialog } from './components/AuthDialog';
+import { ClarityConsent } from './components/ClarityConsent';
 import { DashboardScreen } from './components/DashboardScreen';
 import { MatchCentreScreen } from './components/MatchCentreScreen';
 import { supabase } from './lib/supabase';
@@ -218,6 +219,7 @@ export default function App() {
         onClose={() => setAuthDialogOpen(false)}
         onSignedOut={() => setAuthUser(null)}
       />
+      <ClarityConsent />
       {updateAvailable && (
         <div role="status" className="fixed bottom-24 left-4 right-4 z-50 mx-auto flex max-w-md items-center justify-between gap-4 rounded-2xl border border-[#c7f36b]/40 bg-[#102018] p-4 text-sm text-white shadow-2xl md:bottom-6">
           <span>A new Play XI update is ready.</span>
