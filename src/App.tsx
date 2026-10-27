@@ -33,6 +33,10 @@ export default function App() {
   const [checkoutReturned, setCheckoutReturned] = useState(false);
 
   useEffect(() => {
+    window.dispatchEvent(new CustomEvent('playxi-screen-change', { detail: activeScreen }));
+  }, [activeScreen]);
+
+  useEffect(() => {
     if (!import.meta.env.PROD) return;
     const currentScript = document.querySelector<HTMLScriptElement>('script[type="module"][src]')?.getAttribute('src');
     if (!currentScript) return;

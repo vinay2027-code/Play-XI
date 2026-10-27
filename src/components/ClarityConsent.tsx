@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-const STORAGE_KEY = 'playxi-clarity-consent-v1';
+const STORAGE_KEY = 'playxi-analytics-consent-v2';
 const PROJECT_ID = 'z2mouyq0u2';
 const ENABLED_HOSTS = new Set(['playfpl.digital', 'www.playfpl.digital']);
 const CONSENT_LIFETIME_MS = 270 * 24 * 60 * 60 * 1000;
@@ -43,7 +43,24 @@ export function ClarityConsent() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
-    if (consent === 'allowed' && ENABLED_HOSTS.has(window.location.hostname)) loadClarity();
+    if (consent !== 'allowed' || !ENABLED_HOSTS.has(window.location.hostname)) return;
+    loadClarity();
+
+    let active = true;
+    let removeScreenListener: (() => void) | undefined;
+    void import('../lib/posthogAnalytics').then(({ startPostHog, trackScreen }) => {
+      if (!active) return;
+      startPostHog();
+      const onScreenChange = (event: Event) => {
+        trackScreen((event as CustomEvent<string>).detail);
+      };
+      window.addEventListener('playxi-screen-change', onScreenChange);
+      removeScreenListener = () => window.removeEventListener('playxi-screen-change', onScreenChange);
+    });
+    return () => {
+      active = false;
+      removeScreenListener?.();
+    };
   }, [consent]);
 
   if (!ENABLED_HOSTS.has(window.location.hostname)) return null;
@@ -52,7 +69,9 @@ export function ClarityConsent() {
     try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ value: next, at: Date.now() })); } catch { /* The choice still applies for this page. */ }
     if (next === 'declined' && consent === 'allowed') {
       window.clarity?.('consentv2', { ad_Storage: 'denied', analytics_Storage: 'denied' });
-      window.location.reload(); // Stop the already loaded recording script for this visit.
+      void import('../lib/posthogAnalytics')
+        .then(({ stopPostHog }) => stopPostHog())
+        .finally(() => window.location.reload()); // Stop both trackers for this visit.
       return;
     }
     setConsent(next);
@@ -62,7 +81,7 @@ export function ClarityConsent() {
   return <>
     {(consent === null || settingsOpen) && <section role="dialog" aria-modal="false" aria-label="Analytics privacy choice" className="fixed bottom-24 left-4 right-4 z-[90] mx-auto max-w-lg rounded-2xl border border-white/15 bg-[#0b1d16] p-5 text-white shadow-2xl md:bottom-5 md:left-5 md:right-auto">
       <h2 className="text-base font-bold">Help improve Play XI?</h2>
-      <p className="mt-2 text-sm leading-6 text-slate-300">With your permission, Microsoft Clarity records page interactions to help us improve the app. You can change this choice later. <a className="underline underline-offset-2" href="/privacy.html">Privacy details</a></p>
+      <p className="mt-2 text-sm leading-6 text-slate-300">With your permission, Microsoft Clarity records page interactions and PostHog counts page views and app screens. You can change this choice later. <a className="underline underline-offset-2" href="/privacy.html">Privacy details</a></p>
       <div className="mt-4 flex flex-wrap gap-2">
         <button type="button" onClick={() => choose('allowed')} className="rounded-xl bg-[#c7f36b] px-4 py-2 text-sm font-bold text-[#102018]">Allow analytics</button>
         <button type="button" onClick={() => choose('declined')} className="rounded-xl border border-white/25 px-4 py-2 text-sm font-semibold text-white">No thanks</button>
